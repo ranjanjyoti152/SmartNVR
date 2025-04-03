@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}Recordings - Smart NVR{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Recordings</h1>
+        <div class="flex space-x-4">
+            <!-- Storage Info -->
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center">
+                    <i class="fas fa-hdd text-indigo-600 text-xl mr-2"></i>
+                    <div>
+                        <div class="text-sm font-medium text-gray-500">Storage Used</div>
+                        <div class="text-lg font-semibold text-gray-900" id="storageUsed">0 GB / 0 GB</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Retention Settings Button -->
+            <button onclick="showRetentionModal()" 
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <i class="fas fa-cog mr-2"></i>
+                Retention Settings
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Camera Filter -->
+            <div>
+                <label for="cameraFilter" class="block text-sm font-medium text-gray-700">Camera</label>
+                <select id="cameraFilter" 
+                        class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                    <option value="">All Cameras</option>
+                    {% for camera in cameras %}
+                    <option value="{{ camera.id }}">{{ camera.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Date Range -->
+            <div>
+                <label for="dateFrom" class="block text-sm font-medium text-gray-700">From</label>
+                <input type="date" 
+                       id="dateFrom" 
+                       class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+            </div>
+            <div>
+                <label for="dateTo" class="block text-sm font-medium text-gray-700">To</label>
+                <input type="date" 
+                       id="dateTo" 
+                       class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+            </div>
+
+            <!-- Apply Filters Button -->
+            <div class="flex items-end">
+                <button onclick="applyFilters()" 
+                        class="w-full inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Apply Filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recordings Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="recordingsGrid">
+        {% for recording in recordings %}
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <!-- Video Thumbnail -->
+            <div class="relative aspect-video bg-gray-100">
+                <img src="{{ recording.thumbnail_url }}" 
+                     alt="Recording thumbnail" 
+                     class="w-full h-full object-cover">
+                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                    <div class="text-white">
+                        <div class="font-medium">{{ recording.camera_name }}</div>
+                        <div class="text-sm">{{ recording.start_time.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recording Info -->
+            <div class="p-4">
+                <div class="flex justify-between items-center">
+                    <div class="text-sm text-gray-500">Duration: {{ recording.duration }}</div>
+                    <div class="text-sm text-gray-500">{{ recording.size_formatted }}</div>
+                </div>
+                
+                <!-- Actions -->
+                <div class="mt-4 flex justify-end space-x-2">
+                    <button onclick="playRecording('{{ recording.id }}')"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-play mr-1"></i>
+                        Play
+                    </button>
+                    <button onclick="downloadRecording('{{ recording.id }}')"
+                            class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-download mr-1"></i>
+                        Download
+                    </button>
+                    <button onclick="deleteRecording('{{ recording.id }}')"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        <i class="fas fa-trash-alt mr-1"></i>
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-span-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
+            <i class="fas fa-video-slash text-gray-400 text-4xl mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900">No recordings found</h3>
+            <p class="mt-1 text-sm text-gray-500">No recordings match your current filters.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Retention Settings Modal -->
+    <div id="retentionModal" class="hidden fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Retention Settings</h3>
+                <button onclick="hideRetentionModal()" class="text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="retentionForm" class="space-y-4">
+                <div>
+                    <label for="retentionDays" class="block text-sm font-medium text-gray-700">Keep recordings for</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <input type="number" 
+                               id="retentionDays" 
+                               name="retention_days" 
+                               min="1" 
+                               class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300">
+                        <span class="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                            days
+                        </span>
+                    </div>
+                </div>
+                <div>
+                    <label for="minFreeSpace" class="block text-sm font-medium text-gray-700">Minimum free space</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <input type="number" 
+                               id="minFreeSpace" 
+                               name="min_free_space" 
+                               min="1" 
+                               class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border-gray-300">
+                        <span class="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
+                            GB
+                        </span>
+                    </div>
+                </div>
+                <div class="mt-5 sm:mt-6">
+                    <button type="submit"
+                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
+                        Save Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function updateStorageInfo() {
+    try {
+        const response = await fetch('/api/system/storage');
+        const data = await response.json();
+        const usedGB = (data.used_space / (1024 * 1024 * 1024)).toFixed(1);
+        const totalGB = (data.total_space / (1024 * 1024 * 1024)).toFixed(1);
+        document.getElementById('storageUsed').textContent = `${usedGB} GB / ${totalGB} GB`;
+    } catch (error) {
+        console.error('Error updating storage info:', error);
+    }
+}
+
+function showRetentionModal() {
+    document.getElementById('retentionModal').classList.remove('hidden');
+}
+
+function hideRetentionModal() {
+    document.getElementById('retentionModal').classList.add('hidden');
+}
+
+async function applyFilters() {
+    const cameraId = document.getElementById('cameraFilter').value;
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    
+    try {
+        const response = await fetch(`/api/recordings/filter?camera_id=${cameraId}&date_from=${dateFrom}&date_to=${dateTo}`);
+        if (response.ok) {
+            const data = await response.json();
+            // Update recordings grid with filtered data
+            updateRecordingsGrid(data);
+        }
+    } catch (error) {
+        console.error('Error applying filters:', error);
+    }
+}
+
+async function playRecording(recordingId) {
+    window.location.href = `/recordings/${recordingId}/play`;
+}
+
+async function downloadRecording(recordingId) {
+    window.location.href = `/api/recordings/${recordingId}/download`;
+}
+
+async function deleteRecording(recordingId) {
+    if (confirm('Are you sure you want to delete this recording?')) {
+        try {
+            const response = await fetch(`/api/recordings/${recordingId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                // Remove recording from grid
+                const element = document.querySelector(`[data-recording-id="${recordingId}"]`);
+                if (element) element.remove();
+                // Update storage info
+                updateStorageInfo();
+            } else {
+                alert('Failed to delete recording');
+            }
+        } catch (error) {
+            console.error('Error deleting recording:', error);
+            alert('Failed to delete recording');
+        }
+    }
+}
+
+document.getElementById('retentionForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const data = {
+        retention_days: parseInt(formData.get('retention_days')),
+        min_free_space: parseInt(formData.get('min_free_space'))
+    };
+    
+    try {
+        const response = await fetch('/api/settings/retention', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            hideRetentionModal();
+            alert('Retention settings updated successfully');
+        } else {
+            const errorData = await response.json();
+            alert(errorData.detail || 'Failed to update retention settings');
+        }
+    } catch (error) {
+        console.error('Error updating retention settings:', error);
+        alert('Failed to update retention settings');
+    }
+});
+
+// Update storage info every 30 seconds
+setInterval(updateStorageInfo, 30000);
+
+// Initial update
+updateStorageInfo();
+</script>
+{% endblock %}

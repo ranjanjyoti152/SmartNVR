@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Smart NVR{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- System Status -->
+    <div class="mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">System Status</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- CPU Usage -->
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fas fa-microchip text-indigo-600 text-xl"></i>
+                        <span class="ml-2 text-sm font-medium text-gray-500">CPU</span>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900" id="cpuUsage">0%</span>
+                </div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-indigo-600 h-2 rounded-full" id="cpuBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Memory Usage -->
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fas fa-memory text-indigo-600 text-xl"></i>
+                        <span class="ml-2 text-sm font-medium text-gray-500">Memory</span>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900" id="memoryUsage">0%</span>
+                </div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-indigo-600 h-2 rounded-full" id="memoryBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Disk Usage -->
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fas fa-hdd text-indigo-600 text-xl"></i>
+                        <span class="ml-2 text-sm font-medium text-gray-500">Disk</span>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900" id="diskUsage">0%</span>
+                </div>
+                <div class="mt-2 w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-indigo-600 h-2 rounded-full" id="diskBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Storage Usage -->
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <i class="fas fa-database text-indigo-600 text-xl"></i>
+                        <span class="ml-2 text-sm font-medium text-gray-500">Recordings</span>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900" id="storageSize">0 GB</span>
+                </div>
+                <div class="mt-2 text-sm text-gray-500" id="recordingCount">0 recordings</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Grid -->
+    <div>
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold text-gray-900">Cameras</h2>
+            <button type="button" 
+                    onclick="showAddCameraModal()"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <i class="fas fa-plus mr-2"></i>
+                Add Camera
+            </button>
+        </div>
+        
+        <div class="camera-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="cameraGrid">
+            {% if cameras %}
+                {% for camera in cameras %}
+                <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <div class="camera-feed relative">
+                        <!-- Live Camera Feed -->
+                        <img src="{{ url_for('video_feed', camera_id=camera.id) }}" 
+                             alt="{{ camera.name }}"
+                             class="w-full aspect-video object-cover"
+                             id="camera{{ camera.id }}">
+                        
+                        <!-- Camera Controls Overlay -->
+                        <div class="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4">
+                            <div class="flex justify-between items-center">
+                                <span class="text-white font-medium">{{ camera.name }}</span>
+                                <div class="flex items-center space-x-2">
+                                    <!-- Recording Status -->
+                                    <span class="recording-indicator px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-white">
+                                        <i class="fas fa-circle text-red-500 animate-pulse mr-1"></i>
+                                        REC
+                                    </span>
+                                    
+                                    <!-- AI Detection Toggle -->
+                                    <button onclick="toggleAI({{ camera.id }})"
+                                            class="px-2 py-1 rounded-full text-xs font-medium {% if camera.ai_enabled %}bg-green-500/20{% else %}bg-gray-500/20{% endif %} text-white"
+                                            id="ai-toggle-{{ camera.id }}">
+                                        <i class="fas fa-brain mr-1"></i>
+                                        AI {% if camera.ai_enabled %}ON{% else %}OFF{% endif %}
+                                    </button>
+                                    
+                                    <!-- Connection Status -->
+                                    <span class="flex h-3 w-3 relative">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full {% if camera.is_active %}bg-green-400{% else %}bg-red-400{% endif %} opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-3 w-3 {% if camera.is_active %}bg-green-500{% else %}bg-red-500{% endif %}"></span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-span-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
+                    <i class="fas fa-video-slash text-gray-400 text-4xl mb-4"></i>
+                    <h3 class="text-lg font-medium text-gray-900">No cameras configured</h3>
+                    <p class="mt-1 text-sm text-gray-500">Get started by adding your first camera.</p>
+                    <div class="mt-6">
+                        <button type="button" 
+                                onclick="showAddCameraModal()"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <i class="fas fa-plus mr-2"></i>
+                            Add Camera
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Add Camera Modal -->
+    <div id="addCameraModal" class="hidden fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Add New Camera</h3>
+                <button onclick="hideAddCameraModal()" class="text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="addCameraForm" class="space-y-4">
+                <div>
+                    <label for="cameraName" class="block text-sm font-medium text-gray-700">Camera Name</label>
+                    <input type="text" 
+                           id="cameraName" 
+                           name="name" 
+                           required 
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="cameraUrl" class="block text-sm font-medium text-gray-700">RTSP URL</label>
+                    <input type="text" 
+                           id="cameraUrl" 
+                           name="url" 
+                           required 
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                           placeholder="rtsp://username:password@camera-ip:554/stream">
+                </div>
+                <div class="flex items-center">
+                    <input type="checkbox" 
+                           id="aiEnabled" 
+                           name="ai_enabled" 
+                           class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                    <label for="aiEnabled" class="ml-2 block text-sm text-gray-900">
+                        Enable AI Detection
+                    </label>
+                </div>
+                <div class="mt-5 sm:mt-6">
+                    <button type="submit"
+                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
+                        Add Camera
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+{% endblock %}

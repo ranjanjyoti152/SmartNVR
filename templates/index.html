@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/styles.css" rel="stylesheet">
+    <title>Smart NVR - Live Feeds</title>
+</head>
+<body>
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl my-4">Live Camera Feeds</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Camera feed -->
+            <div class="border rounded-lg p-4 bg-white shadow">
+                <h2 class="text-xl mb-2">Camera 1</h2>
+                <div class="relative">
+                    <div class="camera-container relative w-full">
+                        <img id="camera1" src="/video_feed/1" alt="Camera Feed" class="w-full h-auto min-h-[240px] bg-gray-100">
+                        <canvas id="roiCanvas" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10"></canvas>
+                        <div class="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded">AI Detection</div>
+                    </div>
+                    <div class="mt-4 space-x-2">
+                        <button id="drawROI" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Draw ROI</button>
+                        <button id="clearROI" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded hidden">Clear ROI</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const camera = document.getElementById('camera1');
+            const canvas = document.getElementById('roiCanvas');
+            const drawBtn = document.getElementById('drawROI');
+            const clearBtn = document.getElementById('clearROI');
+            const ctx = canvas.getContext('2d');
+            let isDrawing = false;
+            let points = [];
+
+            // Set canvas size to match image
+            function updateCanvasSize() {
+                canvas.width = camera.offsetWidth;
+                canvas.height = camera.offsetHeight;
+                // Redraw existing points if any
+                if (points.length > 0) {
+                    redrawPoints();
+                }
+            }
+
+            function redrawPoints() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                // Draw points and lines
+                points.forEach((point, index) => {
+                    // Draw point
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fill();
+
+                    // Draw line to next point
+                    if (index < points.length - 1) {
+                        ctx.beginPath();
+                        ctx.moveTo(point.x, point.y);
+                        ctx.lineTo(points[index + 1].x, points[index + 1].y);
+                        ctx.strokeStyle = '#00ff00';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                });
+
+                // Draw preview line if we have 3 or more points
+                if (points.length >= 3) {
+                    ctx.beginPath();
+                    ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
+                    ctx.lineTo(points[0].x, points[0].y);
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.setLineDash([5, 5]);
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // Update canvas size initially and on window resize
+            updateCanvasSize();
+            window.addEventListener('resize', updateCanvasSize);
+
+            // Wait for image to load to set canvas size
+            camera.onload = updateCanvasSize;
+
+            function startDrawing() {
+                isDrawing = true;
+                points = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                canvas.classList.remove('pointer-events-none');
+                drawBtn.classList.add('hidden');
+                clearBtn.classList.remove('hidden');
+            }
+
+            function stopDrawing() {
+                isDrawing = false;
+                canvas.classList.add('pointer-events-none');
+                if (points.length > 2) {
+                    // Close the polygon
+                    drawPolygon();
+                    // Send ROI data to server
+                    sendROIData();
+                }
+            }
+
+            function drawPolygon(completed = false) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw all points
+                points.forEach((point, index) => {
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fill();
+
+                    // Draw line to next point
+                    if (index < points.length - 1) {
+                        ctx.beginPath();
+                        ctx.moveTo(point.x, point.y);
+                        ctx.lineTo(points[index + 1].x, points[index + 1].y);
+                        ctx.strokeStyle = '#00ff00';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                });
+
+                // If we have 3 or more points, close the polygon
+                if (points.length >= 3) {
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    points.forEach(point => {
+                        ctx.lineTo(point.x, point.y);
+                    });
+                    ctx.closePath();
+                    
+                    if (completed) {
+                        ctx.fillStyle = 'rgba(0, 255, 0, 0.2)';
+                        ctx.fill();
+                        ctx.strokeStyle = '#00ff00';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    } else {
+                        // Show preview of closing line
+                        ctx.setLineDash([5, 5]);
+                        ctx.strokeStyle = '#00ff00';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+                }
+            }
+
+            function sendROIData() {
+                const normalizedPoints = points.map(p => ({
+                    x: p.x / canvas.width,
+                    y: p.y / canvas.height
+                }));
+                
+                fetch('/set_roi/1', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        points: normalizedPoints
+                    })
+                });
+            }
+
+            drawBtn.addEventListener('click', startDrawing);
+            
+            clearBtn.addEventListener('click', () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                points = [];
+                drawBtn.classList.remove('hidden');
+                clearBtn.classList.add('hidden');
+                // Send empty ROI to server
+                fetch('/set_roi/1', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        points: []
+                    })
+                });
+            });
+
+            canvas.addEventListener('click', (e) => {
+                if (!isDrawing) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                // Check if clicking near the start point to close the polygon
+                if (points.length >= 3) {
+                    const startPoint = points[0];
+                    const distance = Math.sqrt(Math.pow(x - startPoint.x, 2) + Math.pow(y - startPoint.y, 2));
+                    if (distance < 20) { // 20px radius for closing
+                        points.push({x: startPoint.x, y: startPoint.y});
+                        drawPolygon(true);
+                        stopDrawing();
+                        return;
+                    }
+                }
+
+                points.push({x, y});
+                drawPolygon();
+
+                // Double click to finish
+                if (e.detail === 2 && points.length >= 3) {
+                    drawPolygon(true);
+                    stopDrawing();
+                }
+            });
+
+            // Show hover effect when near start point
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDrawing || points.length < 3) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const startPoint = points[0];
+                const distance = Math.sqrt(Math.pow(x - startPoint.x, 2) + Math.pow(y - startPoint.y, 2));
+
+                if (distance < 20) {
+                    canvas.style.cursor = 'pointer';
+                    // Highlight start point
+                    ctx.beginPath();
+                    ctx.arc(startPoint.x, startPoint.y, 5, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#00ff00';
+                    ctx.fill();
+                } else {
+                    canvas.style.cursor = 'crosshair';
+                    drawPolygon();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

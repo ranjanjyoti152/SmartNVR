@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Smart NVR{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-100 dark:bg-gray-900">
+    <nav class="bg-white dark:bg-gray-800 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <h1 class="text-xl font-semibold">Settings</h1>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <button id="logoutBtn" type="button"
+                            class="relative inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">
+            <h2 class="text-lg font-medium mb-4">Camera Settings</h2>
+            <div id="roi-settings" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- ROI settings will be dynamically added here -->
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 mb-6">
+            <h2 class="text-lg font-medium mb-4">Model Management</h2>
+            <button id="downloadModelBtn" class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-apple-blue hover:bg-blue-600">
+                Download YOLOv5 Model
+            </button>
+            <button id="runInferenceBtn" class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-apple-blue hover:bg-blue-600">
+                Run Inference
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Check authentication
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
+
+    // Handle logout
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+    });
+
+    // Handle download model button
+    document.getElementById('downloadModelBtn').addEventListener('click', () => {
+        // TODO: Implement model download functionality
+        alert('Model download functionality coming soon!');
+    });
+
+    // Handle run inference button
+    document.getElementById('runInferenceBtn').addEventListener('click', () => {
+        // TODO: Implement inference functionality
+        alert('Inference functionality coming soon!');
+    });
+
+    // Load ROI settings for each camera
+    async function loadROISettings() {
+        // TODO: Fetch and display ROI settings for each camera
+    }
+
+    loadROISettings();
+});
+</script>
+{% endblock %}

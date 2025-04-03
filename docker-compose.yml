@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  nvr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./recordings:/app/recordings
+      - ./models:/app/models
+    environment:
+      - SECRET_KEY=your-secret-key-change-this-in-production
+      - DEBUG=False
+      - PORT=8000
+      - AI_SERVICE_HOST=ai
+      - AI_SERVICE_PORT=5053
+      - MAX_WORKERS=4
+      - CAMERA_BUFFER_SIZE=30
+    depends_on:
+      ai:
+        condition: service_healthy
+    networks:
+      - smartnvr_network
+    restart: unless-stopped
+    command: ["main.py"]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5053:5053"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - DEBUG=False
+      - MODEL_PATH=/app/models/yolov5n.pt
+      - BATCH_SIZE=8
+      - MAX_WORKERS=2
+    networks:
+      - smartnvr_network
+    restart: unless-stopped
+    command: ["ai_detection.py", "--port", "5053", "--debug", "--model", "/app/models/yolov5n.pt"]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "5053"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+networks:
+  smartnvr_network:
+    driver: bridge
