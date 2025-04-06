@@ -46,6 +46,7 @@ var/
 venv/
 ENV/
 env/
+.env
 
 # IDE specific files
 .idea/
@@ -62,3 +63,18 @@ env/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*~
+tmp/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
