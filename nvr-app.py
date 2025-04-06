@@ -121,6 +121,8 @@ COUNT_UPDATE_INTERVAL = 1  # Update counts every second
 
 # Stream cache for handling multiple streams
 stream_cache = {}
+# Track reference counts for each stream (how many clients are watching)
+stream_clients = {}
 # Track reconnection attempts and backoff timing for each stream
 reconnection_tracker = {}
 
@@ -487,7 +489,7 @@ def manage_recordings():
 
 def open_stream(rtsp_url):
     """Open a video stream with optimized settings and fallback options"""
-    global reconnection_tracker
+    global reconnection_tracker, stream_cache
     stream = None
     current_time = time.time()
     
@@ -504,70 +506,115 @@ def open_stream(rtsp_url):
             logger.debug(f"Respecting backoff delay for {rtsp_url}, next attempt in {backoff_delay - (current_time - last_attempt):.1f}s")
             return None
     
-    # Check if we already have this stream cached
-    if rtsp_url in stream_cache:
-        stream = stream_cache[rtsp_url]['stream']
-        last_access = stream_cache[rtsp_url]['last_access']
-        # If it's been more than 5 minutes, refresh the stream
-        if current_time - last_access > 300:
-            try:
-                stream.release()
-            except:
-                pass
-            stream = None
+    # Thread synchronization - use a lock to prevent concurrent access to the same stream
+    stream_lock = threading.Lock()
     
-    if stream is None:
-        # Update reconnection tracking
-        if rtsp_url not in reconnection_tracker:
-            reconnection_tracker[rtsp_url] = {'attempts': 0, 'last_attempt': current_time, 'last_success': 0}
-        else:
-            reconnection_tracker[rtsp_url]['attempts'] += 1
-            reconnection_tracker[rtsp_url]['last_attempt'] = current_time
-            
-        # Log attempt with backoff information
-        attempts = reconnection_tracker[rtsp_url]['attempts']
-        if attempts > 0:
-            backoff_delay = min(2 ** attempts, 300)
-            logger.info(f"Attempting to reconnect to {rtsp_url} (attempt #{attempts}, backoff: {backoff_delay}s)")
+    with stream_lock:
+        # Check if we already have this stream cached
+        if rtsp_url in stream_cache:
+            stream = stream_cache[rtsp_url]['stream']
+            last_access = stream_cache[rtsp_url]['last_access']
+            # If it's been more than 5 minutes, refresh the stream
+            if current_time - last_access > 300:
+                try:
+                    # Properly release the stream to prevent FFmpeg context issues
+                    if stream and stream.isOpened():
+                        stream.release()
+                        # Add a small delay to ensure complete cleanup
+                        time.sleep(0.1)
+                except Exception as e:
+                    logger.error(f"Error releasing stream: {e}")
+                stream = None
         
-        try:
-            # Try with optimized settings first
-            logger.debug(f"Opening RTSP stream: {rtsp_url}")
-            
-            # Try using more reliable transport options
-            stream = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-            stream.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # Reduce buffer size for lower latency
-            
-            if not stream.isOpened():
-                logger.warning("Failed to open stream with FFMPEG, trying native capture")
-                stream = cv2.VideoCapture(rtsp_url)
-                
-            if stream.isOpened():
-                # Cache the stream
-                stream_cache[rtsp_url] = {
-                    'stream': stream,
-                    'last_access': current_time,
-                    'health': 100,  # Stream health indicator (0-100)
-                    'frames_read': 0,
-                    'failed_reads': 0
-                }
-                logger.info("Stream opened successfully")
-                
-                # Reset reconnection attempts on successful connection
-                reconnection_tracker[rtsp_url] = {
-                    'attempts': 0,
-                    'last_attempt': current_time,
-                    'last_success': current_time
-                }
+        if stream is None:
+            # Update reconnection tracking
+            if rtsp_url not in reconnection_tracker:
+                reconnection_tracker[rtsp_url] = {'attempts': 0, 'last_attempt': current_time, 'last_success': 0}
             else:
-                logger.error("Failed to open stream with OpenCV")
+                reconnection_tracker[rtsp_url]['attempts'] += 1
+                reconnection_tracker[rtsp_url]['last_attempt'] = current_time
+                
+            # Log attempt with backoff information
+            attempts = reconnection_tracker[rtsp_url]['attempts']
+            if attempts > 0:
+                backoff_delay = min(2 ** attempts, 300)
+                logger.info(f"Attempting to reconnect to {rtsp_url} (attempt #{attempts}, backoff: {backoff_delay}s)")
+            
+            try:
+                # Try with optimized settings first
+                logger.debug(f"Opening RTSP stream: {rtsp_url}")
+                
+                # Set specific FFmpeg options to avoid threading issues
+                cv2_ffmpeg_opts = {
+                    cv2.CAP_PROP_FOURCC: cv2.VideoWriter_fourcc(*'MJPG'),  # Use MJPEG to reduce complexity
+                    cv2.CAP_PROP_BUFFERSIZE: 3,  # Small buffer for low latency
+                }
+                
+                # Check if THREAD_COUNT property is available in this OpenCV version
+                # This property might not be available in older OpenCV versions
+                try:
+                    if hasattr(cv2, 'CAP_PROP_THREAD_COUNT'):
+                        cv2_ffmpeg_opts[cv2.CAP_PROP_THREAD_COUNT] = 1  # Force single-threaded decoding if supported
+                except AttributeError:
+                    logger.debug("CAP_PROP_THREAD_COUNT not supported in this OpenCV version")
+                
+                # Try using more reliable transport options with specific FFmpeg options
+                # Use custom FFmpeg arguments to prevent threading issues
+                stream = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+                
+                # Apply optimized settings
+                for prop, value in cv2_ffmpeg_opts.items():
+                    stream.set(prop, value)
+                
+                if not stream.isOpened():
+                    logger.warning("Failed to open stream with FFMPEG, trying with TCP transport (more reliable)")
+                    # Try using TCP transport (more reliable than UDP for many cameras)
+                    tcp_rtsp_url = rtsp_url.replace('rtsp://', 'rtsp://') + '?tcp'
+                    stream = cv2.VideoCapture(tcp_rtsp_url, cv2.CAP_FFMPEG)
+                    
+                    # Apply optimized settings again
+                    for prop, value in cv2_ffmpeg_opts.items():
+                        stream.set(prop, value)
+                    
+                    if not stream.isOpened():
+                        logger.warning("Failed with TCP transport, trying native capture")
+                        stream = cv2.VideoCapture(rtsp_url)
+                    
+                # Explicitly grab a frame to confirm connection works
+                if stream.isOpened():
+                    success = stream.grab()
+                    if not success:
+                        logger.warning("Stream opened but frame grab failed, stream may not be working")
+                        stream.release()
+                        return None
+                        
+                    # Stream is now confirmed working
+                    # Cache the stream with additional synchronization info
+                    stream_cache[rtsp_url] = {
+                        'stream': stream,
+                        'last_access': current_time,
+                        'health': 100,  # Stream health indicator (0-100)
+                        'frames_read': 0,
+                        'failed_reads': 0,
+                        'lock': threading.Lock()  # Add per-stream lock for thread synchronization
+                    }
+                    logger.info("Stream opened and verified successfully")
+                    
+                    # Reset reconnection attempts on successful connection
+                    reconnection_tracker[rtsp_url] = {
+                        'attempts': 0,
+                        'last_attempt': current_time,
+                        'last_success': current_time
+                    }
+                else:
+                    logger.error("Failed to open stream with OpenCV")
+                    return None
+            except Exception as e:
+                logger.error(f"Error opening stream: {e}")
                 return None
-        except Exception as e:
-            logger.error(f"Error opening stream: {e}")
-            return None
-    else:
-        # Update last access time
-        stream_cache[rtsp_url]['last_access'] = current_time
+        else:
+            # Update last access time
+            stream_cache[rtsp_url]['last_access'] = current_time
     
     return stream
 
@@ -758,11 +805,24 @@ def generate_frames(rtsp_url, is_roi_editor=False):
     while True:
         success = False
         current_time = time.time()
+        frame = None
         
-        # Try to read a frame
+        # Use the per-stream lock if available to prevent threading issues
+        stream_lock = None
+        if rtsp_url in stream_cache and 'lock' in stream_cache[rtsp_url]:
+            stream_lock = stream_cache[rtsp_url]['lock']
+        else:
+            # Create a lock if it doesn't exist yet
+            stream_lock = threading.Lock()
+            if rtsp_url in stream_cache:
+                stream_cache[rtsp_url]['lock'] = stream_lock
+        
+        # Try to read a frame with lock protection
         try:
             if stream is not None:
-                success, frame = stream.read()
+                # Use the lock to prevent concurrent access to the stream
+                with stream_lock:
+                    success, frame = stream.read()
                 
                 # Update stream health metrics if stream exists in cache
                 if rtsp_url in stream_cache:
@@ -796,9 +856,13 @@ def generate_frames(rtsp_url, is_roi_editor=False):
                 # Try to reconnect
                 if stream is not None:
                     try:
-                        stream.release()
-                    except:
-                        pass
+                        # Properly release the stream to avoid FFmpeg context issues
+                        with stream_lock:
+                            stream.release()
+                            # Small delay to ensure complete cleanup
+                            time.sleep(0.1)
+                    except Exception as e:
+                        logger.error(f"Error releasing stream: {e}")
                 
                 stream = open_stream(rtsp_url)
                 
@@ -1046,8 +1110,34 @@ def video_feed():
         return "Error: No RTSP URL provided", 400
         
     is_roi_editor = request.args.get('roi_editor', 'false').lower() == 'true'
+    
+    # Track client connections for this stream
+    if rtsp_url not in stream_clients:
+        stream_clients[rtsp_url] = 0
+    stream_clients[rtsp_url] += 1
+    logger.debug(f"New client connected to stream {rtsp_url}, total clients: {stream_clients[rtsp_url]}")
+    
+    # Create a generator for the client
+    def generate():
+        try:
+            # Use the existing generator
+            for frame in generate_frames(rtsp_url, is_roi_editor):
+                yield frame
+        finally:
+            # When client disconnects, decrement client count
+            if rtsp_url in stream_clients:
+                stream_clients[rtsp_url] = max(0, stream_clients[rtsp_url] - 1)
+                logger.debug(f"Client disconnected from stream {rtsp_url}, remaining clients: {stream_clients[rtsp_url]}")
+                
+                # Only release the stream if no clients are watching
+                if stream_clients[rtsp_url] == 0 and rtsp_url in stream_cache:
+                    logger.info(f"All clients disconnected from {rtsp_url}, keeping stream in cache for future use")
+                    # We don't immediately release the stream, just update the last access time
+                    # This allows quick reconnections without having to reestablish the RTSP connection
+                    stream_cache[rtsp_url]['last_access'] = time.time()
+    
     return Response(
-        generate_frames(rtsp_url, is_roi_editor),
+        generate(),
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
 
@@ -1373,6 +1463,9 @@ def playback():
     config = load_config()
     rec_path = config["recording"]["path"]
     
+    # Add today's date for the datepicker default
+    today_date = datetime.now().strftime("%Y-%m-%d")
+    
     # Add streams data to fix the template error
     streams = load_stream_config()
     
@@ -1383,7 +1476,7 @@ def playback():
         # Get recordings from all subdirectories
         for root, dirs, files in os.walk(rec_path):
             for file in files:
-                if file.endswith('.mp4'):
+                if file.endswith('.mp4') or file.endswith('.avi') or file.endswith('.mkv'):
                     file_path = os.path.join(root, file)
                     rel_path = os.path.relpath(file_path, rec_path)
                     file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
@@ -1393,7 +1486,7 @@ def playback():
                     timestamp = file_mtime
                     
                     # Try to parse filename like "camera1_20230215_153045.mp4"
-                    match = re.match(r'(.+)_(\d{8})_(\d{6})\.mp4', file)
+                    match = re.match(r'(.+)_(\d{8})_(\d{6})\.(mp4|avi|mkv)', file)
                     if match:
                         camera_name = match.group(1).replace('_', ' ').title()
                         try:
@@ -1402,6 +1495,9 @@ def playback():
                             timestamp = datetime.strptime(f"{date_str}_{time_str}", "%Y%m%d_%H%M%S")
                         except ValueError:
                             pass
+                    
+                    # Make sure rel_path uses forward slashes for URL compatibility
+                    rel_path = rel_path.replace('\\', '/')
                     
                     recordings.append({
                         'path': rel_path,
@@ -1430,7 +1526,8 @@ def playback():
     return render_template('playback.html',
                            recordings_by_date=recordings_by_date,
                            sorted_dates=sorted_dates,
-                           streams=streams)
+                           streams=streams,
+                           today_date=today_date)
 
 @app.route('/playback/recordings')
 @login_required
