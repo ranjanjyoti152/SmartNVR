@@ -15,32 +15,66 @@ SmartNVR is a powerful, AI-enhanced Network Video Recorder application built wit
 - **System Monitoring**: Monitor system resources, storage usage and camera health
 - **Database Recording Storage**: Store recordings metadata in a database for improved management
 - **Timeline Export**: Export recordings based on a specified timeline for backup or external use
+- **Multi-client Stream Handling**: View streams in multiple tabs or browsers simultaneously
 
 ## Installation
 
-### Prerequisites
+### Automated Installation (Recommended)
+
+The easiest way to install SmartNVR is using the provided setup script:
+
+1. Make the setup script executable:
+   ```bash
+   chmod +x setup.sh
+   ```
+
+2. Run the setup script with sudo:
+   ```bash
+   sudo ./setup.sh
+   ```
+
+3. Follow the prompts to:
+   - Install required system dependencies
+   - Set up a Python virtual environment (optional)
+   - Install Python packages
+   - Configure directories and permissions
+   - Create a systemd service (optional)
+   - Set up RTSP server components (optional)
+   - Configure NVIDIA CUDA support for AI acceleration (if available)
+
+4. Start SmartNVR:
+   ```bash
+   ./start.sh
+   ```
+
+### Manual Installation
+
+If you prefer to install manually:
+
+#### Prerequisites
 
 - Python 3.7+ 
-- OpenCV
+- OpenCV and dependencies
+- FFmpeg
 - SQLAlchemy
 - A compatible AI detection server (optional)
 
-### Setup
+#### Setup Steps
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/SmartNVR.git
-   cd SmartNVR
+1. Install system dependencies:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y python3 python3-pip python3-dev ffmpeg libsm6 libxext6 libxrender-dev
    ```
 
-2. Install required packages:
-   ```
-   pip install -r requirements.txt
+2. Install required Python packages:
+   ```bash
+   pip3 install Flask opencv-python numpy Pillow psutil requests SQLAlchemy Werkzeug
    ```
 
 3. Start the application:
-   ```
-   python nvr-app.py
+   ```bash
+   python3 nvr-app.py
    ```
 
 4. Access the web interface at:
@@ -74,12 +108,34 @@ SmartNVR can work with an external AI detection server:
 2. Enter the URL of your AI server
 3. Enable or disable AI processing as needed
 
+### Running as a Service
+
+If you used the automated installation and chose to create a systemd service:
+
+1. Start the service:
+   ```bash
+   sudo systemctl start smartnvr
+   ```
+
+2. Check service status:
+   ```bash
+   sudo systemctl status smartnvr
+   ```
+
+3. Enable autostart at boot:
+   ```bash
+   sudo systemctl enable smartnvr
+   ```
+
 ## Project Structure
 
 ```
 SmartNVR/
 ├── nvr-app.py         # Main application file
 ├── database.py        # Database functionality for recordings
+├── setup.sh           # Automated installation script
+├── start.sh           # Application startup script
+├── requirements.txt   # Python dependencies
 ├── config/            # Configuration files
 │   ├── config.json    # System configuration
 │   ├── users.json     # User accounts
@@ -137,6 +193,27 @@ On first run, a default admin user is created:
 - Password: `admin123`
 
 **Important:** Change this password immediately after first login.
+
+## Troubleshooting
+
+### Stream Issues
+
+- Make sure your RTSP URL is correct and accessible
+- Check if FFmpeg is properly installed
+- Verify that your camera supports the RTSP protocol
+- Open multiple tabs without interfering with stream connections
+
+### Recording Playback Problems
+
+- Ensure recordings path has proper permissions
+- Check that file paths use forward slashes (/)
+- Verify that your browser supports the video format
+
+### AI Detection Not Working
+
+- Verify that the AI server URL is correct in settings
+- Check if the AI server is running and accessible
+- Look for connection errors in the nvr-app.log file
 
 ## License
 
