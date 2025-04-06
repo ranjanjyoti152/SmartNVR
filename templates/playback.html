@@ -305,7 +305,7 @@
                                     <i class="fas fa-play"></i> Play
                                 </button>
                                 <button class="btn btn-secondary" onclick="downloadRecording('{{ recording.path }}')">
-                                    <i class="fas fa-download"></i>
+                                    <i class="fas fa-download"></i> Download
                                 </button>
                             </div>
                         </div>
@@ -329,12 +329,22 @@
 {% block scripts %}
 <script>
     let currentRecordings = {};
-    {% if recordings_by_date %}
+    {% if recordings_by_date and sorted_dates %}
         {% set first_date = sorted_dates[0] %}
         currentRecordings = {{ recordings_by_date[first_date]|tojson }};
     {% endif %}
     
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize date filter with today's date if not already set
+        const dateFilter = document.getElementById('dateFilter');
+        if (!dateFilter.value) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateFilter.value = `${year}-${month}-${day}`;
+        }
+        
         // Set up date selector
         const dateItems = document.querySelectorAll('.date-item');
         dateItems.forEach(item => {
@@ -353,6 +363,14 @@
             });
         });
         
+        // Set up filters
+        document.getElementById('applyFilters').addEventListener('click', function() {
+            const date = document.getElementById('dateFilter').value;
+            const camera = document.getElementById('cameraFilter').value;
+            
+            loadRecordingsForDate(date, camera);
+        });
+        
         // Set up timeline events
         populateTimeline();
         
@@ -360,7 +378,6 @@
         document.getElementById('backBtn').addEventListener('click', function() {
             document.getElementById('videoPlayerContainer').style.display = 'none';
             document.getElementById('recordingList').style.display = 'grid';
-            document.getElementById('timeline').style.display = 'block';
         });
         
         // Set up refresh buttons
@@ -406,21 +423,133 @@
         }
     }
     
-    function loadRecordingsForDate(date) {
-        fetch(`/playback/recordings?date=${date}`)
-            .then(response => response.json())
+    function loadRecordingsForDate(date, camera = 'all') {
+        // Update the URL to include the date for better bookmarking
+        const params = new URLSearchParams(window.location.search);
+        params.set('date', date);
+        if (camera !== 'all') {
+            params.set('camera', camera);
+        } else {
+            params.delete('camera');
+        }
+        
+        const newUrl = window.location.pathname + '?' + params.toString();
+        history.replaceState(null, '', newUrl);
+        
+        // Show loading state
+        const recordingContent = document.getElementById('recordingContent');
+        recordingContent.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-spinner fa-spin"></i>
+                <h3>Loading recordings...</h3>
+            </div>
+        `;
+        
+        // Build the request URL with proper date format
+        let requestUrl = `/playback/recordings?date=${encodeURIComponent(date)}`;
+        if (camera !== 'all') {
+            requestUrl += `&camera=${encodeURIComponent(camera)}`;
+        }
+        
+        fetch(requestUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log("Loaded recordings:", data);
+                
                 // Update current recordings
-                currentRecordings = data.recordings;
+                currentRecordings = data.recordings || [];
                 
-                // Update recordings list
-                updateRecordingsList();
-                
-                // Update timeline
-                populateTimeline();
+                // Update page content
+                if (currentRecordings.length === 0) {
+                    // Show empty state
+                    recordingContent.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-film"></i>
+                            <h3>No recordings found</h3>
+                            <p>There are currently no recordings for ${date}. Recordings will appear here once they are created.</p>
+                            <button class="btn" id="checkAgainBtn">
+                                <i class="fas fa-sync-alt"></i> Check Again
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Set up refresh button
+                    document.getElementById('checkAgainBtn').addEventListener('click', refreshRecordings);
+                } else {
+                    // Create layout for recordings
+                    recordingContent.innerHTML = `
+                        <div class="timeline">
+                            <div class="timeline-inner" id="timeline">
+                                <!-- Timeline events will be added via JavaScript -->
+                            </div>
+                            <div class="timeline-hours">
+                                <div>00:00</div>
+                                <div>03:00</div>
+                                <div>06:00</div>
+                                <div>09:00</div>
+                                <div>12:00</div>
+                                <div>15:00</div>
+                                <div>18:00</div>
+                                <div>21:00</div>
+                                <div>00:00</div>
+                            </div>
+                        </div>
+                        
+                        <div id="videoPlayerContainer" class="video-player-container" style="display: none;">
+                            <video id="videoPlayer" class="video-player" controls>
+                                <source src="" type="video/mp4">
+                                Your browser does not support the video tag.
+                            </video>
+                            <div class="player-controls">
+                                <button class="btn" id="backBtn">
+                                    <i class="fas fa-arrow-left"></i> Back to List
+                                </button>
+                                <button class="btn" id="downloadBtn">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="recordingList" class="recording-list">
+                        </div>
+                    `;
+                    
+                    // Set up back button
+                    document.getElementById('backBtn').addEventListener('click', function() {
+                        document.getElementById('videoPlayerContainer').style.display = 'none';
+                        document.getElementById('recordingList').style.display = 'grid';
+                    });
+                    
+                    // Update recordings list
+                    updateRecordingsList();
+                    
+                    // Update timeline
+                    populateTimeline();
+                }
             })
             .catch(error => {
                 console.error('Error loading recordings:', error);
+                recordingContent.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error loading recordings</h3>
+                        <p>There was an error loading recordings: ${error.message}</p>
+                        <button class="btn" id="retryBtn">
+                            <i class="fas fa-sync-alt"></i> Retry
+                        </button>
+                    </div>
+                `;
+                
+                // Set up retry button
+                document.getElementById('retryBtn').addEventListener('click', function() {
+                    loadRecordingsForDate(date, camera);
+                });
+                
                 showNotification('Error loading recordings', 'danger');
             });
     }
@@ -442,6 +571,9 @@
         let html = '';
         
         currentRecordings.forEach(recording => {
+            // Ensure path is properly escaped for JavaScript
+            const escapedPath = recording.path.replace(/\\/g, '/');
+            
             html += `
                 <div class="recording-card">
                     <div class="recording-thumbnail">
@@ -457,11 +589,11 @@
                             ${recording.date} • ${recording.time}
                         </div>
                         <div class="recording-actions">
-                            <button class="btn" onclick="playRecording('${recording.path}', '${recording.camera}')">
+                            <button class="btn" onclick="playRecording('${escapedPath}', '${recording.camera}')">
                                 <i class="fas fa-play"></i> Play
                             </button>
-                            <button class="btn btn-secondary" onclick="downloadRecording('${recording.path}')">
-                                <i class="fas fa-download"></i>
+                            <button class="btn btn-secondary" onclick="downloadRecording('${escapedPath}')">
+                                <i class="fas fa-download"></i> Download
                             </button>
                         </div>
                     </div>
@@ -473,15 +605,25 @@
     }
     
     function playRecording(path, title) {
+        console.log("Playing recording:", path);
+        
         // Show video player
         const videoPlayer = document.getElementById('videoPlayer');
         const videoContainer = document.getElementById('videoPlayerContainer');
         const recordingList = document.getElementById('recordingList');
         
-        // Set video source
-        videoPlayer.querySelector('source').src = '/recordings/' + path;
+        // Set video source - ensure path is properly formatted
+        const videoPath = '/recordings/' + path;
+        videoPlayer.querySelector('source').src = videoPath;
         videoPlayer.load();
-        videoPlayer.play();
+        
+        // Play after a short delay to allow video to load
+        setTimeout(() => {
+            videoPlayer.play().catch(err => {
+                console.error("Error playing video:", err);
+                showNotification('Error playing video: ' + err.message, 'danger');
+            });
+        }, 100);
         
         // Set download button URL
         document.getElementById('downloadBtn').onclick = function() {
@@ -494,7 +636,9 @@
     }
     
     function downloadRecording(path) {
+        // Create a proper URL for download
         const downloadUrl = '/recordings/' + path;
+        console.log("Downloading from:", downloadUrl);
         
         // Create a temporary link element and click it
         const link = document.createElement('a');
@@ -508,10 +652,12 @@
     function refreshRecordings() {
         // Get current date from active date item
         const activeDate = document.querySelector('.date-item.active');
-        const date = activeDate ? activeDate.getAttribute('data-date') : null;
+        const date = activeDate ? activeDate.getAttribute('data-date') : 
+                    document.getElementById('dateFilter').value;
         
         if (date) {
-            loadRecordingsForDate(date);
+            const camera = document.getElementById('cameraFilter').value;
+            loadRecordingsForDate(date, camera);
         } else {
             // If no active date, just reload the page
             window.location.reload();
