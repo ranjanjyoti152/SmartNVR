@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SmartNVR{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        :root {
+            --primary-color: #0071e3;
+            --secondary-color: #f5f5f7;
+            --dark-color: #1d1d1f;
+            --light-color: #f5f5f7;
+            --danger-color: #ff3b30;
+            --success-color: #34c759;
+            --warning-color: #ff9500;
+            --sidebar-width: 220px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+                Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        }
+        
+        body {
+            background-color: var(--light-color);
+            color: var(--dark-color);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #fff;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        
+        .logo-container {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .nav-menu {
+            padding: 20px 0;
+        }
+        
+        .nav-title {
+            padding: 0 20px;
+            margin-bottom: 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #999;
+            letter-spacing: 1px;
+        }
+        
+        .nav-item {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            color: var(--dark-color);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        
+        .nav-item i {
+            margin-right: 15px;
+            font-size: 18px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .nav-item.active {
+            background-color: rgba(0, 113, 227, 0.1);
+            color: var(--primary-color);
+            font-weight: 500;
+            border-left: 3px solid var(--primary-color);
+        }
+        
+        .nav-item:hover:not(.active) {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        
+        .content {
+            flex-grow: 1;
+            margin-left: var(--sidebar-width);
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 500;
+        }
+        
+        .user-menu {
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .user-menu-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            min-width: 150px;
+            margin-top: 5px;
+            z-index: 1000;
+        }
+        
+        .user-menu-content.show {
+            display: block;
+        }
+        
+        .user-menu-item {
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            color: var(--dark-color);
+            text-decoration: none;
+        }
+        
+        .user-menu-item i {
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        
+        .user-menu-item:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background-color: var(--primary-color);
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn i {
+            margin-right: 8px;
+        }
+        
+        .btn:hover {
+            background-color: #005bbd;
+        }
+        
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: var(--dark-color);
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e5e5e7;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+        
+        .btn-danger:hover {
+            background-color: #d83128;
+        }
+        
+        .card {
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .card-title i {
+            margin-right: 10px;
+            font-size: 18px;
+            color: var(--primary-color);
+        }
+        
+        /* Grid layout for dashboard */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .alert-danger {
+            background-color: rgba(255, 59, 48, 0.1);
+            color: var(--danger-color);
+            border: 1px solid var(--danger-color);
+        }
+        
+        .alert-success {
+            background-color: rgba(52, 199, 89, 0.1);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+        
+        .alert-warning {
+            background-color: rgba(255, 149, 0, 0.1);
+            color: var(--warning-color);
+            border: 1px solid var(--warning-color);
+        }
+        
+        /* Form styles */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-size: 16px;
+            background-color: var(--secondary-color);
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+        }
+        
+        /* Stats card styles */
+        .stat-card {
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .stat-title {
+            font-size: 16px;
+            color: #666;
+        }
+        
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #fff;
+        }
+        
+        .icon-cpu { background-color: #0071e3; }
+        .icon-memory { background-color: #5856d6; }
+        .icon-disk { background-color: #ff9500; }
+        .icon-storage { background-color: #34c759; }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 500;
+            margin: 10px 0;
+        }
+        
+        .stat-subtext {
+            font-size: 14px;
+            color: #999;
+            margin-top: auto;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e5e5e7;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-cpu { background-color: #0071e3; }
+        .progress-memory { background-color: #5856d6; }
+        .progress-disk { background-color: #ff9500; }
+        .progress-storage { background-color: #34c759; }
+
+        /* Style for stream grid on dashboard */
+        .stream-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .stream-card {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            transition: transform 0.2s;
+        }
+
+        .stream-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stream-video {
+            width: 100%;
+            height: 240px;
+            background-color: #000;
+            position: relative;
+        }
+
+        .stream-video img, 
+        .stream-video iframe {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .stream-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            color: white;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stream-footer {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stream-title {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .stream-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            color: var(--dark-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* Modal styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-backdrop.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            width: 500px;
+            background-color: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transform: translateY(-20px);
+            transition: transform 0.3s;
+        }
+
+        .modal-backdrop.active .modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Responsive design for mobile */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 60px;
+                overflow: visible;
+            }
+            
+            .sidebar .logo-container {
+                justify-content: center;
+                padding: 20px 0;
+            }
+            
+            .sidebar .logo span, 
+            .sidebar .nav-title, 
+            .sidebar .nav-item span {
+                display: none;
+            }
+            
+            .sidebar .nav-item {
+                padding: 15px 0;
+                justify-content: center;
+            }
+            
+            .sidebar .nav-item i {
+                margin-right: 0;
+            }
+            
+            .content {
+                margin-left: 60px;
+            }
+            
+            .grid, .stream-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    {% block additional_styles %}{% endblock %}
+</head>
+<body>
+    <div class="sidebar">
+        <div class="logo-container">
+            <h2 style="color: var(--primary-color); font-size: 18px; font-weight: 500;">SmartNVR</h2>
+        </div>
+        <div class="nav-menu">
+            <div class="nav-title">Main Menu</div>
+            <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                <i class="fas fa-th-large"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('playback') }}" class="nav-item {% if request.endpoint == 'playback' %}active{% endif %}">
+                <i class="fas fa-play-circle"></i>
+                <span>Playback</span>
+            </a>
+            <a href="{{ url_for('events') }}" class="nav-item {% if request.endpoint == 'events' %}active{% endif %}">
+                <i class="fas fa-bell"></i>
+                <span>Events</span>
+            </a>
+            <div class="nav-title">Management</div>
+            <a href="{{ url_for('manage_streams') }}" class="nav-item {% if request.endpoint == 'manage_streams' %}active{% endif %}">
+                <i class="fas fa-camera"></i>
+                <span>Cameras</span>
+            </a>
+            <a href="{{ url_for('system_monitor') }}" class="nav-item {% if request.endpoint == 'system_monitor' %}active{% endif %}">
+                <i class="fas fa-chart-line"></i>
+                <span>System Monitor</span>
+            </a>
+            <a href="{{ url_for('settings') }}" class="nav-item {% if request.endpoint == 'settings' %}active{% endif %}">
+                <i class="fas fa-cog"></i>
+                <span>Settings</span>
+            </a>
+        </div>
+    </div>
+    <div class="content">
+        <div class="header">
+            <h1>{% block page_title %}{% endblock %}</h1>
+            <div class="user-menu">
+                <div class="user-avatar">
+                    {{ session.user[0].upper() }}
+                </div>
+                <div class="user-menu-content">
+                    <a href="{{ url_for('settings') }}" class="user-menu-item">
+                        <i class="fas fa-cog"></i> Settings
+                    </a>
+                    <a href="{{ url_for('logout') }}" class="user-menu-item">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+    
+    {% block modal %}{% endblock %}
+    
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+    <script>
+        // Base JavaScript functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Handle modal functionality
+            const modalTriggers = document.querySelectorAll('[data-toggle="modal"]');
+            modalTriggers.forEach(trigger => {
+                trigger.addEventListener('click', function() {
+                    const targetModal = document.querySelector(this.dataset.target);
+                    if (targetModal) {
+                        targetModal.classList.add('active');
+                    }
+                });
+            });
+            
+            const modalCloseButtons = document.querySelectorAll('.modal-close, [data-dismiss="modal"]');
+            modalCloseButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const modal = this.closest('.modal-backdrop');
+                    if (modal) {
+                        modal.classList.remove('active');
+                    }
+                });
+            });
+            
+            // Close modal when clicking outside
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+                backdrop.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        this.classList.remove('active');
+                    }
+                });
+            });
+
+            // Handle user menu functionality
+            const userMenu = document.querySelector('.user-menu');
+            const userMenuContent = document.querySelector('.user-menu-content');
+            
+            userMenu.addEventListener('click', function(e) {
+                e.stopPropagation();
+                userMenuContent.classList.toggle('show');
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', function() {
+                userMenuContent.classList.remove('show');
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}System Monitor - SmartNVR{% endblock %}
+
+{% block page_title %}System Monitor{% endblock %}
+
+{% block additional_styles %}
+<style>
+    .chart-container {
+        height: 300px;
+        margin-bottom: 20px;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .overview-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 1024px) {
+        .overview-stats {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .overview-stats {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .metric-card {
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .metric-name {
+        font-size: 16px;
+        color: #666;
+        margin-bottom: 5px;
+    }
+    
+    .metric-value {
+        font-size: 24px;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 5px;
+    }
+    
+    .system-info {
+        font-size: 14px;
+        margin-bottom: 10px;
+    }
+    
+    .system-info-label {
+        font-weight: 500;
+        margin-right: 10px;
+        color: #666;
+        width: 120px;
+        display: inline-block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="overview-stats">
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-title">CPU Usage</div>
+            <div class="stat-icon icon-cpu">
+                <i class="fas fa-microchip"></i>
+            </div>
+        </div>
+        <div class="stat-value" id="cpu-usage">0%</div>
+        <div class="progress-bar">
+            <div class="progress-fill progress-cpu" id="cpu-bar" style="width: 0%"></div>
+        </div>
+        <div class="stat-subtext">Current processor utilization</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-title">Memory Usage</div>
+            <div class="stat-icon icon-memory">
+                <i class="fas fa-memory"></i>
+            </div>
+        </div>
+        <div class="stat-value" id="memory-usage">0%</div>
+        <div class="progress-bar">
+            <div class="progress-fill progress-memory" id="memory-bar" style="width: 0%"></div>
+        </div>
+        <div class="stat-subtext"><span id="memory-used">0</span> of <span id="memory-total">0</span> GB used</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-title">Disk Usage</div>
+            <div class="stat-icon icon-disk">
+                <i class="fas fa-hdd"></i>
+            </div>
+        </div>
+        <div class="stat-value" id="disk-usage">0%</div>
+        <div class="progress-bar">
+            <div class="progress-fill progress-disk" id="disk-bar" style="width: 0%"></div>
+        </div>
+        <div class="stat-subtext"><span id="disk-used">0</span> of <span id="disk-total">0</span> GB used</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-title">Recording Storage</div>
+            <div class="stat-icon icon-storage">
+                <i class="fas fa-film"></i>
+            </div>
+        </div>
+        <div class="stat-value" id="storage-usage">0%</div>
+        <div class="progress-bar">
+            <div class="progress-fill progress-storage" id="storage-bar" style="width: 0%"></div>
+        </div>
+        <div class="stat-subtext"><span id="storage-used">0</span> of <span id="storage-total">0</span> GB used</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">
+        <i class="fas fa-chart-line"></i> System Performance
+    </div>
+    <div class="chart-container">
+        <canvas id="performanceChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">
+        <i class="fas fa-info-circle"></i> System Information
+    </div>
+    <div class="system-info">
+        <div><span class="system-info-label">System Name:</span> <span id="system-name">SmartNVR</span></div>
+        <div><span class="system-info-label">Uptime:</span> <span id="system-uptime">0 days, 0 hours, 0 minutes</span></div>
+        <div><span class="system-info-label">Last Update:</span> <span id="last-update">Never</span></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">
+        <i class="fas fa-exclamation-triangle"></i> System Alerts
+        <div style="margin-left: auto">
+            <button class="btn btn-secondary" id="clearAlerts">
+                <i class="fas fa-trash"></i> Clear Alerts
+            </button>
+        </div>
+    </div>
+    <div id="alerts-container">
+        <div style="text-align: center; padding: 20px; color: #999;">
+            <i class="fas fa-check-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+            <p>No alerts at this time</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Performance data storage
+    let performanceData = {
+        labels: [],
+        cpu: [],
+        memory: [],
+        disk: []
+    };
+    
+    // Chart object
+    let performanceChart;
+    
+    // Initialize the dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+        // Create the performance chart
+        initializeChart();
+        
+        // Get initial stats
+        fetchSystemStats();
+        
+        // Set up refresh interval
+        setInterval(fetchSystemStats, 5000); // Update every 5 seconds
+        
+        // Set up alerts clear button
+        document.getElementById('clearAlerts').addEventListener('click', function() {
+            document.getElementById('alerts-container').innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #999;">
+                    <i class="fas fa-check-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+                    <p>No alerts at this time</p>
+                </div>
+            `;
+        });
+    });
+    
+    // Format bytes to a readable format (KB, MB, GB)
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+    
+    // Format bytes to GB for display
+    function bytesToGB(bytes) {
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2);
+    }
+    
+    // Initialize the performance chart
+    function initializeChart() {
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        
+        performanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'CPU',
+                        data: [],
+                        borderColor: '#0071e3',
+                        backgroundColor: 'rgba(0, 113, 227, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Memory',
+                        data: [],
+                        borderColor: '#5856d6',
+                        backgroundColor: 'rgba(88, 86, 214, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Disk I/O',
+                        data: [],
+                        borderColor: '#ff9500',
+                        backgroundColor: 'rgba(255, 149, 0, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Percent (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            }
+        });
+    }
+    
+    // Fetch system stats from API
+    function fetchSystemStats() {
+        fetch('/api/system/stats')
+            .then(response => response.json())
+            .then(data => {
+                updateStats(data);
+                updateChart(data);
+                checkForAlerts(data);
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            })
+            .catch(error => {
+                console.error('Error fetching system stats:', error);
+                createAlert('Error fetching system stats', 'danger');
+            });
+    }
+    
+    // Update the stats display
+    function updateStats(data) {
+        // Update CPU stats
+        const cpuUsage = data.cpu;
+        document.getElementById('cpu-usage').textContent = cpuUsage.toFixed(1) + '%';
+        document.getElementById('cpu-bar').style.width = cpuUsage + '%';
+        
+        // Update Memory stats
+        const memoryUsage = data.memory.percent;
+        const memoryTotal = bytesToGB(data.memory.total);
+        const memoryUsed = bytesToGB(data.memory.used);
+        
+        document.getElementById('memory-usage').textContent = memoryUsage.toFixed(1) + '%';
+        document.getElementById('memory-bar').style.width = memoryUsage + '%';
+        document.getElementById('memory-total').textContent = memoryTotal;
+        document.getElementById('memory-used').textContent = memoryUsed;
+        
+        // Update Disk stats
+        const diskUsage = data.disk.percent;
+        const diskTotal = bytesToGB(data.disk.total);
+        const diskUsed = bytesToGB(data.disk.used);
+        
+        document.getElementById('disk-usage').textContent = diskUsage.toFixed(1) + '%';
+        document.getElementById('disk-bar').style.width = diskUsage + '%';
+        document.getElementById('disk-total').textContent = diskTotal;
+        document.getElementById('disk-used').textContent = diskUsed;
+        
+        // Update Recording Storage stats if available
+        if (data.recording_storage && !data.recording_storage.error) {
+            const storageUsage = data.recording_storage.percent;
+            const storageTotal = bytesToGB(data.recording_storage.total);
+            const storageUsed = bytesToGB(data.recording_storage.used);
+            
+            document.getElementById('storage-usage').textContent = storageUsage.toFixed(1) + '%';
+            document.getElementById('storage-bar').style.width = storageUsage + '%';
+            document.getElementById('storage-total').textContent = storageTotal;
+            document.getElementById('storage-used').textContent = storageUsed;
+        }
+    }
+    
+    // Update the performance chart
+    function updateChart(data) {
+        const timestamp = new Date().toLocaleTimeString();
+        
+        // Add new data
+        performanceData.labels.push(timestamp);
+        performanceData.cpu.push(data.cpu);
+        performanceData.memory.push(data.memory.percent);
+        performanceData.disk.push(data.disk.percent);
+        
+        // Keep only the last 30 data points
+        if (performanceData.labels.length > 30) {
+            performanceData.labels.shift();
+            performanceData.cpu.shift();
+            performanceData.memory.shift();
+            performanceData.disk.shift();
+        }
+        
+        // Update chart data
+        performanceChart.data.labels = performanceData.labels;
+        performanceChart.data.datasets[0].data = performanceData.cpu;
+        performanceChart.data.datasets[1].data = performanceData.memory;
+        performanceChart.data.datasets[2].data = performanceData.disk;
+        
+        // Update the chart
+        performanceChart.update();
+    }
+    
+    // Check for alerts based on system stats
+    function checkForAlerts(data) {
+        // CPU alert threshold (90%)
+        if (data.cpu > 90) {
+            createAlert(`High CPU usage detected: ${data.cpu.toFixed(1)}%`, 'danger');
+        }
+        
+        // Memory alert threshold (90%)
+        if (data.memory.percent > 90) {
+            createAlert(`High memory usage detected: ${data.memory.percent.toFixed(1)}%`, 'danger');
+        }
+        
+        // Disk alert threshold (90%)
+        if (data.disk.percent > 90) {
+            createAlert(`Low disk space warning: ${data.disk.percent.toFixed(1)}%`, 'warning');
+        }
+        
+        // Recording storage alert
+        if (data.recording_storage && data.recording_storage.percent > 90) {
+            createAlert(`Recording storage nearly full: ${data.recording_storage.percent.toFixed(1)}%`, 'warning');
+        }
+    }
+    
+    // Create an alert
+    function createAlert(message, type = 'info') {
+        const alertContainer = document.getElementById('alerts-container');
+        
+        // Remove "no alerts" message if present
+        if (alertContainer.querySelector('p') && alertContainer.querySelector('p').textContent === 'No alerts at this time') {
+            alertContainer.innerHTML = '';
+        }
+        
+        // Create alert element
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>${new Date().toLocaleTimeString()}</strong>: ${message}
+                </div>
+                <button type="button" class="btn-close" style="background: none; border: none; cursor: pointer;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        // Add click handler to close button
+        alert.querySelector('.btn-close').addEventListener('click', function() {
+            alert.remove();
+            
+            // Check if there are no more alerts
+            if (alertContainer.children.length === 0) {
+                alertContainer.innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: #999;">
+                        <i class="fas fa-check-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+                        <p>No alerts at this time</p>
+                    </div>
+                `;
+            }
+        });
+        
+        // Add to container
+        alertContainer.prepend(alert);
+    }
+</script>
+{% endblock %}

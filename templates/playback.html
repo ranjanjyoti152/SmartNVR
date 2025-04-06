@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+
+{% block title %}Playback - SmartNVR{% endblock %}
+
+{% block page_title %}Playback{% endblock %}
+
+{% block additional_styles %}
+<style>
+    .date-selector {
+        display: flex;
+        overflow-x: auto;
+        gap: 10px;
+        padding: 10px 0;
+        margin-bottom: 20px;
+    }
+    
+    .date-item {
+        flex: 0 0 auto;
+        padding: 10px 15px;
+        background-color: var(--secondary-color);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .date-item.active {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .date-item:hover:not(.active) {
+        background-color: #e5e5e7;
+    }
+    
+    .recording-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+    }
+    
+    .recording-card {
+        background-color: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
+    }
+    
+    .recording-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .recording-thumbnail {
+        height: 180px;
+        background-color: #000;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .recording-thumbnail img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .recording-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10px;
+        background: linear-gradient(transparent, rgba(0,0,0,0.8));
+        color: white;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .recording-time {
+        font-size: 14px;
+    }
+    
+    .recording-duration {
+        font-size: 12px;
+        padding: 3px 8px;
+        background-color: rgba(0,0,0,0.5);
+        border-radius: 4px;
+    }
+    
+    .recording-info {
+        padding: 15px;
+    }
+    
+    .recording-title {
+        font-size: 16px;
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    
+    .recording-details {
+        font-size: 14px;
+        color: #666;
+        margin-bottom: 15px;
+    }
+    
+    .recording-actions {
+        display: flex;
+        justify-content: space-between;
+    }
+    
+    .timeline {
+        margin: 20px 0;
+        height: 60px;
+        background-color: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        padding: 10px;
+        position: relative;
+    }
+    
+    .timeline-inner {
+        height: 40px;
+        background-color: var(--secondary-color);
+        border-radius: 8px;
+        position: relative;
+    }
+    
+    .timeline-event {
+        position: absolute;
+        height: 100%;
+        background-color: rgba(0, 113, 227, 0.4);
+        border-radius: 4px;
+        top: 0;
+        cursor: pointer;
+    }
+    
+    .timeline-event:hover {
+        background-color: rgba(0, 113, 227, 0.6);
+    }
+    
+    .timeline-hours {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 10px;
+        margin-top: 5px;
+        font-size: 12px;
+        color: #666;
+    }
+    
+    .video-player-container {
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 20px;
+        background-color: #000;
+        position: relative;
+    }
+    
+    .video-player {
+        width: 100%;
+        aspect-ratio: 16/9;
+        background-color: #000;
+    }
+    
+    .player-controls {
+        display: flex;
+        gap: 10px;
+        padding: 15px;
+        background-color: #f5f5f7;
+        border-radius: 0 0 12px 12px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .empty-state i {
+        font-size: 48px;
+        color: #ccc;
+        margin-bottom: 20px;
+    }
+
+    .empty-state h3 {
+        font-weight: 500;
+        margin-bottom: 10px;
+        color: #666;
+    }
+
+    .empty-state p {
+        color: #999;
+        margin-bottom: 20px;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    /* Filter section */
+    .filter-section {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .filter-control {
+        flex: 1;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title">
+        <i class="fas fa-calendar-alt"></i> Recording Archive
+        <div style="margin-left: auto">
+            <button class="btn btn-secondary" id="refreshBtn">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+    </div>
+    
+    <div class="filter-section">
+        <div class="filter-control">
+            <select id="cameraFilter" class="form-control">
+                <option value="all">All Cameras</option>
+                {% for stream_id, stream in streams.items() %}
+                    <option value="{{ stream_id }}">{{ stream.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="filter-control">
+            <input type="date" id="dateFilter" class="form-control" value="{{ today_date }}">
+        </div>
+        
+        <button class="btn" id="applyFilters">
+            <i class="fas fa-filter"></i> Apply Filters
+        </button>
+    </div>
+
+    <div class="date-selector" id="dateSelector">
+        {% if sorted_dates %}
+            {% for date in sorted_dates %}
+                <div class="date-item {% if loop.first %}active{% endif %}" data-date="{{ date }}">
+                    {{ date }}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="date-item active">No recordings found</div>
+        {% endif %}
+    </div>
+
+    <div id="recordingContent">
+        {% if recordings_by_date and sorted_dates %}
+            {% set first_date = sorted_dates[0] %}
+            <div class="timeline">
+                <div class="timeline-inner" id="timeline">
+                    <!-- Timeline events will be added via JavaScript -->
+                </div>
+                <div class="timeline-hours">
+                    <div>00:00</div>
+                    <div>03:00</div>
+                    <div>06:00</div>
+                    <div>09:00</div>
+                    <div>12:00</div>
+                    <div>15:00</div>
+                    <div>18:00</div>
+                    <div>21:00</div>
+                    <div>00:00</div>
+                </div>
+            </div>
+            
+            <div id="videoPlayerContainer" class="video-player-container" style="display: none;">
+                <video id="videoPlayer" class="video-player" controls>
+                    <source src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="player-controls">
+                    <button class="btn" id="backBtn">
+                        <i class="fas fa-arrow-left"></i> Back to List
+                    </button>
+                    <button class="btn" id="downloadBtn">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                </div>
+            </div>
+            
+            <div id="recordingList" class="recording-list">
+                {% for recording in recordings_by_date[first_date] %}
+                    <div class="recording-card">
+                        <div class="recording-thumbnail">
+                            <!-- We'll use a frame from the video as thumbnail or a placeholder -->
+                            <img src="https://via.placeholder.com/400x225" alt="Recording Thumbnail">
+                            <div class="recording-overlay">
+                                <div class="recording-time">{{ recording.time }}</div>
+                                <div class="recording-duration">2:15</div>
+                            </div>
+                        </div>
+                        <div class="recording-info">
+                            <div class="recording-title">{{ recording.camera }}</div>
+                            <div class="recording-details">
+                                {{ recording.date }} • {{ recording.time }}
+                            </div>
+                            <div class="recording-actions">
+                                <button class="btn" onclick="playRecording('{{ recording.path }}', '{{ recording.camera }}')">
+                                    <i class="fas fa-play"></i> Play
+                                </button>
+                                <button class="btn btn-secondary" onclick="downloadRecording('{{ recording.path }}')">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-film"></i>
+                <h3>No recordings found</h3>
+                <p>There are currently no recordings for the selected date. Recordings will appear here once they are created.</p>
+                <button class="btn" id="checkAgainBtn">
+                    <i class="fas fa-sync-alt"></i> Check Again
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentRecordings = {};
+    {% if recordings_by_date %}
+        {% set first_date = sorted_dates[0] %}
+        currentRecordings = {{ recordings_by_date[first_date]|tojson }};
+    {% endif %}
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up date selector
+        const dateItems = document.querySelectorAll('.date-item');
+        dateItems.forEach(item => {
+            item.addEventListener('click', function() {
+                // Remove active class from all items
+                dateItems.forEach(i => i.classList.remove('active'));
+                
+                // Add active class to clicked item
+                this.classList.add('active');
+                
+                // Get date from data attribute
+                const date = this.getAttribute('data-date');
+                
+                // Update recordings list
+                loadRecordingsForDate(date);
+            });
+        });
+        
+        // Set up timeline events
+        populateTimeline();
+        
+        // Set up back button
+        document.getElementById('backBtn').addEventListener('click', function() {
+            document.getElementById('videoPlayerContainer').style.display = 'none';
+            document.getElementById('recordingList').style.display = 'grid';
+            document.getElementById('timeline').style.display = 'block';
+        });
+        
+        // Set up refresh buttons
+        document.getElementById('refreshBtn').addEventListener('click', refreshRecordings);
+        if (document.getElementById('checkAgainBtn')) {
+            document.getElementById('checkAgainBtn').addEventListener('click', refreshRecordings);
+        }
+    });
+    
+    function populateTimeline() {
+        const timeline = document.getElementById('timeline');
+        if (!timeline) return;
+        
+        timeline.innerHTML = '';
+        
+        // Add events to timeline based on currentRecordings
+        if (currentRecordings.length > 0) {
+            currentRecordings.forEach(recording => {
+                // Extract hour from time (format: HH:MM:SS)
+                const timeParts = recording.time.split(':');
+                const hour = parseInt(timeParts[0]);
+                const minute = parseInt(timeParts[1]);
+                
+                // Calculate position (0-24 hours mapped to 0-100%)
+                const position = ((hour * 60 + minute) / (24 * 60)) * 100;
+                
+                // Create timeline event
+                const event = document.createElement('div');
+                event.className = 'timeline-event';
+                event.style.left = position + '%';
+                event.style.width = '3px'; // Width represents duration
+                
+                // Add tooltip with time
+                event.title = recording.time + ' - ' + recording.camera;
+                
+                // Add click event
+                event.addEventListener('click', function() {
+                    playRecording(recording.path, recording.camera);
+                });
+                
+                timeline.appendChild(event);
+            });
+        }
+    }
+    
+    function loadRecordingsForDate(date) {
+        fetch(`/playback/recordings?date=${date}`)
+            .then(response => response.json())
+            .then(data => {
+                // Update current recordings
+                currentRecordings = data.recordings;
+                
+                // Update recordings list
+                updateRecordingsList();
+                
+                // Update timeline
+                populateTimeline();
+            })
+            .catch(error => {
+                console.error('Error loading recordings:', error);
+                showNotification('Error loading recordings', 'danger');
+            });
+    }
+    
+    function updateRecordingsList() {
+        const recordingList = document.getElementById('recordingList');
+        
+        if (currentRecordings.length === 0) {
+            recordingList.innerHTML = `
+                <div class="empty-state" style="grid-column: 1 / -1;">
+                    <i class="fas fa-film"></i>
+                    <h3>No recordings found</h3>
+                    <p>There are currently no recordings for the selected date.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        
+        currentRecordings.forEach(recording => {
+            html += `
+                <div class="recording-card">
+                    <div class="recording-thumbnail">
+                        <img src="https://via.placeholder.com/400x225" alt="Recording Thumbnail">
+                        <div class="recording-overlay">
+                            <div class="recording-time">${recording.time}</div>
+                            <div class="recording-duration">2:15</div>
+                        </div>
+                    </div>
+                    <div class="recording-info">
+                        <div class="recording-title">${recording.camera}</div>
+                        <div class="recording-details">
+                            ${recording.date} • ${recording.time}
+                        </div>
+                        <div class="recording-actions">
+                            <button class="btn" onclick="playRecording('${recording.path}', '${recording.camera}')">
+                                <i class="fas fa-play"></i> Play
+                            </button>
+                            <button class="btn btn-secondary" onclick="downloadRecording('${recording.path}')">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        recordingList.innerHTML = html;
+    }
+    
+    function playRecording(path, title) {
+        // Show video player
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoContainer = document.getElementById('videoPlayerContainer');
+        const recordingList = document.getElementById('recordingList');
+        
+        // Set video source
+        videoPlayer.querySelector('source').src = '/recordings/' + path;
+        videoPlayer.load();
+        videoPlayer.play();
+        
+        // Set download button URL
+        document.getElementById('downloadBtn').onclick = function() {
+            downloadRecording(path);
+        };
+        
+        // Hide recording list, show video player
+        recordingList.style.display = 'none';
+        videoContainer.style.display = 'block';
+    }
+    
+    function downloadRecording(path) {
+        const downloadUrl = '/recordings/' + path;
+        
+        // Create a temporary link element and click it
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = path.split('/').pop(); // Extract filename from path
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+    
+    function refreshRecordings() {
+        // Get current date from active date item
+        const activeDate = document.querySelector('.date-item.active');
+        const date = activeDate ? activeDate.getAttribute('data-date') : null;
+        
+        if (date) {
+            loadRecordingsForDate(date);
+        } else {
+            // If no active date, just reload the page
+            window.location.reload();
+        }
+    }
+    
+    // Function to show notifications
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type}`;
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.style.maxWidth = '300px';
+        notification.style.opacity = '0';
+        notification.style.transition = 'opacity 0.3s ease-in-out';
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '1';
+        }, 10);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
+</script>
+{% endblock %}

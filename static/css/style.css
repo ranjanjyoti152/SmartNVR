@@ -1,0 +1,142 @@
+:root {
+    --primary-color: #0071e3;
+    --primary-hover: #005bbd;
+    --secondary-color: #f5f5f7;
+    --accent-color: #5856d6;
+    --accent-hover: #4a49b7;
+    --dark-color: #1d1d1f;
+    --light-color: #f5f5f7;
+    --danger-color: #ff3b30;
+    --success-color: #34c759;
+    --warning-color: #ff9500;
+    --sidebar-width: 220px;
+}
+
+/* Subtle pattern background for auth pages */
+.auth-background {
+    background-color: var(--light-color);
+    position: relative;
+}
+
+.auth-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+    z-index: -1;
+}
+
+/* Button enhancements */
+.btn-primary {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover);
+}
+
+/* Show password toggle */
+.password-field {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+}
+
+/* Loading spinner */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Camera tooltips */
+.camera-tooltip {
+    position: absolute;
+    bottom: 40px;
+    left: 10px;
+    background-color: rgba(0,0,0,0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.action-btn:hover .camera-tooltip {
+    opacity: 1;
+}
+
+/* Enhanced form styling */
+.form-control::placeholder {
+    color: #aaa;
+    font-style: italic;
+}
+
+/* Enhanced navigation links */
+.auth-alt-action {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 14px;
+    padding: 10px;
+    background-color: rgba(0, 113, 227, 0.05);
+    border-radius: 8px;
+}
+
+.auth-alt-action a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-alt-action a:hover {
+    text-decoration: underline;
+}
+
+/* Dashboard enhancements */
+.stream-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+.stream-card {
+    position: relative;
+}
+
+.stream-info-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 5;
+}

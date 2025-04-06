@@ -1,0 +1,64 @@
+# SmartNVR .gitignore file
+
+# User configuration files
+/config/users.json
+/config/secret_key
+/config/config.json
+/config/streams/streams.json
+/config/roi/*.json
+
+# Database files
+/database/*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+/logs/
+
+# Recordings
+/recordings/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

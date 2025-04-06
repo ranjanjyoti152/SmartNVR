@@ -1,0 +1,911 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - SmartNVR{% endblock %}
+
+{% block page_title %}Settings{% endblock %}
+
+{% block additional_styles %}
+<style>
+    .settings-nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .settings-nav-item {
+        padding: 10px 15px;
+        background-color: var(--secondary-color);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .settings-nav-item.active {
+        background-color: var(--primary-color);
+        color: white;
+    }
+    
+    .settings-nav-item:hover:not(.active) {
+        background-color: #e5e5e7;
+    }
+    
+    .settings-section {
+        display: none;
+    }
+    
+    .settings-section.active {
+        display: block;
+    }
+    
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 24px;
+    }
+    
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 24px;
+    }
+    
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+        background-color: var(--primary-color);
+    }
+    
+    input:focus + .slider {
+        box-shadow: 0 0 1px var(--primary-color);
+    }
+    
+    input:checked + .slider:before {
+        transform: translateX(24px);
+    }
+    
+    .setting-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .setting-label {
+        flex: 1;
+    }
+    
+    .setting-control {
+        flex: 2;
+    }
+    
+    .hidden {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-nav">
+    <div class="settings-nav-item active" data-section="general">General</div>
+    <div class="settings-nav-item" data-section="storage">Storage & Retention</div>
+    <div class="settings-nav-item" data-section="ai">AI Settings</div>
+    <div class="settings-nav-item" data-section="users">User Management</div>
+    <div class="settings-nav-item" data-section="about">About</div>
+</div>
+
+<!-- General Settings -->
+<div class="card settings-section active" id="general-section">
+    <div class="card-title">
+        <i class="fas fa-cog"></i> General Settings
+    </div>
+    
+    <form action="{{ url_for('settings_general') }}" method="post">
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="system_name">System Name</label>
+                <div style="font-size: 12px; color: #666;">Name displayed in the browser title and header</div>
+            </div>
+            <div class="setting-control">
+                <input type="text" id="system_name" name="system_name" class="form-control" value="{{ config.system.name }}" required>
+            </div>
+        </div>
+
+        <div class="setting-row">
+            <div class="setting-label">
+                <label>Dark Mode</label>
+                <div style="font-size: 12px; color: #666;">Enable dark theme for the interface</div>
+            </div>
+            <div class="setting-control">
+                <label class="switch">
+                    <input type="checkbox" name="dark_mode">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="timezone">Time Zone</label>
+                <div style="font-size: 12px; color: #666;">Select your local time zone</div>
+            </div>
+            <div class="setting-control">
+                <select id="timezone" name="timezone" class="form-control">
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">Eastern Time (US & Canada)</option>
+                    <option value="America/Chicago">Central Time (US & Canada)</option>
+                    <option value="America/Denver">Mountain Time (US & Canada)</option>
+                    <option value="America/Los_Angeles">Pacific Time (US & Canada)</option>
+                    <option value="Europe/London">London</option>
+                    <option value="Europe/Paris">Paris</option>
+                    <option value="Asia/Tokyo">Tokyo</option>
+                    <option value="Australia/Sydney">Sydney</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn">Save General Settings</button>
+    </form>
+</div>
+
+<!-- Storage Settings -->
+<div class="card settings-section" id="storage-section">
+    <div class="card-title">
+        <i class="fas fa-hdd"></i> Storage & Retention Settings
+    </div>
+    
+    <form action="{{ url_for('settings_recording') }}" method="post">
+        <div class="setting-row" id="recording_path_row">
+            <div class="setting-label">
+                <label for="recording_path">Recording Path</label>
+                <div style="font-size: 12px; color: #666;">Directory where recordings are stored</div>
+            </div>
+            <div class="setting-control">
+                <input type="text" id="recording_path" name="recording_path" class="form-control" value="{{ config.recording.path }}" required>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="retention_days">Retention Period (days)</label>
+                <div style="font-size: 12px; color: #666;">Number of days to keep recordings</div>
+            </div>
+            <div class="setting-control">
+                <input type="number" id="retention_days" name="retention_days" class="form-control" value="{{ config.recording.retention_days }}" min="1" max="365" required>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="max_space_gb">Maximum Storage Space (GB)</label>
+                <div style="font-size: 12px; color: #666;">Maximum disk space to use for recordings</div>
+            </div>
+            <div class="setting-control">
+                <input type="number" id="max_space_gb" name="max_space_gb" class="form-control" value="{{ config.recording.max_space_gb }}" min="1" step="0.1" required>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="recording_format">Recording Format</label>
+                <div style="font-size: 12px; color: #666;">File format for video recordings</div>
+            </div>
+            <div class="setting-control">
+                <select id="recording_format" name="recording_format" class="form-control">
+                    <option value="mp4">MP4 (H.264)</option>
+                    <option value="mkv">MKV</option>
+                    <option value="avi">AVI</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="storage_mode">Storage Mode</label>
+                <div style="font-size: 12px; color: #666;">How recordings are stored and managed</div>
+            </div>
+            <div class="setting-control">
+                <select id="storage_mode" name="storage_mode" class="form-control" onchange="updateRecordingPathVisibility()">
+                    <option value="file" {% if config.recording.storage_mode == 'file' %}selected{% endif %}>File System Only</option>
+                    <option value="hybrid" {% if config.recording.storage_mode == 'hybrid' %}selected{% endif %}>Hybrid (Files + Database)</option>
+                    <option value="database" {% if config.recording.storage_mode == 'database' %}selected{% endif %}>Database Optimized</option>
+                </select>
+                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                    <ul style="padding-left: 15px; margin-top: 5px;">
+                        <li><strong>File System:</strong> Store recordings as files only</li>
+                        <li><strong>Hybrid:</strong> Store files with metadata in database</li>
+                        <li><strong>Database:</strong> Optimize for database-driven playback and search</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn">Save Storage Settings</button>
+    </form>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+        <div class="card-title">
+            <i class="fas fa-trash"></i> Storage Management
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label>Clean Old Recordings</label>
+                <div style="font-size: 12px; color: #666;">Manually remove recordings older than retention period</div>
+            </div>
+            <div class="setting-control">
+                <button id="clean-recordings" class="btn btn-danger">
+                    <i class="fas fa-trash"></i> Clean Now
+                </button>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label>Factory Reset</label>
+                <div style="font-size: 12px; color: #666;">Reset all settings, remove cameras and users (including admin)</div>
+            </div>
+            <div class="setting-control">
+                <button id="factory-reset" class="btn btn-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Reset Application
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Settings -->
+<div class="card settings-section" id="ai-section">
+    <div class="card-title">
+        <i class="fas fa-robot"></i> AI Settings
+    </div>
+    
+    <form action="{{ url_for('settings_ai') }}" method="post">
+        <div class="setting-row">
+            <div class="setting-label">
+                <label>AI Detection</label>
+                <div style="font-size: 12px; color: #666;">Enable object detection on camera streams</div>
+            </div>
+            <div class="setting-control">
+                <label class="switch">
+                    <input type="checkbox" name="ai_server_enabled" {% if config.ai_server.enabled %}checked{% endif %}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label for="ai_server_url">AI Server URL</label>
+                <div style="font-size: 12px; color: #666;">URL of the AI processing server</div>
+            </div>
+            <div class="setting-control">
+                <input type="text" id="ai_server_url" name="ai_server_url" class="form-control" value="{{ config.ai_server.url }}" required>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label>Motion Detection</label>
+                <div style="font-size: 12px; color: #666;">Enable motion-based recording</div>
+            </div>
+            <div class="setting-control">
+                <label class="switch">
+                    <input type="checkbox" name="motion_detection">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="setting-row">
+            <div class="setting-label">
+                <label>Object Recognition</label>
+                <div style="font-size: 12px; color: #666;">Detect and classify objects in camera streams</div>
+            </div>
+            <div class="setting-control">
+                <label class="switch">
+                    <input type="checkbox" name="object_recognition" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn">Save AI Settings</button>
+    </form>
+    
+    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
+        <div class="card-title">
+            <i class="fas fa-check-circle"></i> AI System Status
+        </div>
+        
+        <div id="ai-status-container">
+            <div class="setting-row">
+                <div class="setting-label">
+                    <label>Status</label>
+                </div>
+                <div class="setting-control" id="ai-status-indicator">
+                    <span class="badge" style="background-color: #ccc; color: white; padding: 5px 10px; border-radius: 4px;">
+                        <i class="fas fa-circle-notch fa-spin"></i> Checking...
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <button id="check-ai-status" class="btn btn-secondary" style="margin-top: 10px;">
+            <i class="fas fa-sync"></i> Check Connection
+        </button>
+    </div>
+</div>
+
+<!-- User Management -->
+<div class="card settings-section" id="users-section">
+    <div class="card-title">
+        <i class="fas fa-users"></i> User Management
+        <div style="margin-left: auto">
+            <button class="btn" data-toggle="modal" data-target="#addUserModal">
+                <i class="fas fa-plus"></i> Add User
+            </button>
+        </div>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+        <thead>
+            <tr style="border-bottom: 1px solid #eee;">
+                <th style="text-align: left; padding: 10px;">Username</th>
+                <th style="text-align: left; padding: 10px;">Role</th>
+                <th style="text-align: left; padding: 10px;">Created</th>
+                <th style="text-align: right; padding: 10px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="users-table-body">
+            <!-- Users will be loaded dynamically -->
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 20px;">
+                    <i class="fas fa-circle-notch fa-spin"></i> Loading users...
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- About Section -->
+<div class="card settings-section" id="about-section">
+    <div class="card-title">
+        <i class="fas fa-info-circle"></i> About SmartNVR
+    </div>
+    
+    <div style="text-align: center; padding: 20px;">
+        <div style="font-size: 48px; color: var(--primary-color); margin-bottom: 10px;">
+            <i class="fas fa-video"></i>
+        </div>
+        <h2 style="margin-bottom: 5px;">SmartNVR</h2>
+        <div style="color: #666; margin-bottom: 20px;">Version {{ config.system.version }}</div>
+        
+        <p style="max-width: 600px; margin: 0 auto 20px; color: #666;">
+            SmartNVR is a modern network video recorder system with AI-powered object detection,
+            designed for home and small business surveillance needs.
+        </p>
+        
+        <div style="margin-bottom: 30px;">
+            <a href="https://github.com/username/smartnvr" class="btn btn-secondary" target="_blank">
+                <i class="fab fa-github"></i> GitHub
+            </a>
+            <a href="#" class="btn btn-secondary" target="_blank">
+                <i class="fas fa-book"></i> Documentation
+            </a>
+        </div>
+        
+        <div style="font-size: 12px; color: #999;">
+            &copy; 2023 SmartNVR • All Rights Reserved
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modal %}
+<!-- Add User Modal -->
+<div class="modal-backdrop" id="addUserModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Add User</div>
+            <button class="modal-close" data-dismiss="modal">&times;</button>
+        </div>
+        <form id="add-user-form">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="new_username">Username</label>
+                    <input type="text" id="new_username" name="username" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">Password</label>
+                    <input type="password" id="new_password" name="password" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-control" required>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; margin-bottom: 0;">
+                    <input type="checkbox" id="is_admin" name="is_admin" style="margin-right: 10px;">
+                    <label for="is_admin">Administrator privileges</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn">Add User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal-backdrop" id="editUserModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Edit User</div>
+            <button class="modal-close" data-dismiss="modal">&times;</button>
+        </div>
+        <form id="edit-user-form">
+            <input type="hidden" id="edit_username" name="username">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit_new_password">New Password (leave blank to keep current)</label>
+                    <input type="password" id="edit_new_password" name="new_password" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="edit_confirm_password">Confirm New Password</label>
+                    <input type="password" id="edit_confirm_password" name="confirm_password" class="form-control">
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; margin-bottom: 0;">
+                    <input type="checkbox" id="edit_is_admin" name="is_admin" style="margin-right: 10px;">
+                    <label for="edit_is_admin">Administrator privileges</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" id="delete-user-btn" style="margin-right: auto;">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Factory Reset Confirmation Modal -->
+<div class="modal-backdrop" id="resetConfirmModal">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Factory Reset Confirmation</div>
+            <button class="modal-close" data-dismiss="modal">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i> <strong>Warning!</strong> This action cannot be undone.
+            </div>
+            <p>
+                Are you sure you want to perform a factory reset? This will:
+            </p>
+            <ul>
+                <li>Delete all users (including admin)</li>
+                <li>Remove all camera configurations</li>
+                <li>Reset all application settings to default</li>
+                <li>Restart the application</li>
+            </ul>
+            <p>
+                After restart, you will need to create a new admin account.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirm-reset-btn">
+                <i class="fas fa-exclamation-triangle"></i> Confirm Reset
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Handle settings navigation
+    document.addEventListener('DOMContentLoaded', function() {
+        const navItems = document.querySelectorAll('.settings-nav-item');
+        const sections = document.querySelectorAll('.settings-section');
+        
+        navItems.forEach(item => {
+            item.addEventListener('click', function() {
+                const sectionId = this.getAttribute('data-section');
+                
+                // Remove active class from all items and sections
+                navItems.forEach(i => i.classList.remove('active'));
+                sections.forEach(s => s.classList.remove('active'));
+                
+                // Add active class to clicked item and corresponding section
+                this.classList.add('active');
+                document.getElementById(sectionId + '-section').classList.add('active');
+            });
+        });
+        
+        // Initialize recording path visibility based on current storage mode
+        updateRecordingPathVisibility();
+        
+        // Initialize user management
+        loadUsers();
+        
+        // Set up add user form submission
+        document.getElementById('add-user-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('new_username').value;
+            const password = document.getElementById('new_password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const isAdmin = document.getElementById('is_admin').checked;
+            
+            // Validate passwords match
+            if (password !== confirmPassword) {
+                showNotification('Passwords do not match', 'danger');
+                return;
+            }
+            
+            // Call API to add user
+            fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username,
+                    password,
+                    is_admin: isAdmin,
+                    action: 'create'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('User added successfully', 'success');
+                    
+                    // Close modal
+                    document.getElementById('addUserModal').classList.remove('active');
+                    
+                    // Reset form
+                    document.getElementById('add-user-form').reset();
+                    
+                    // Reload users
+                    loadUsers();
+                } else {
+                    showNotification(data.error || 'Failed to add user', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding user:', error);
+                showNotification('An error occurred while adding the user', 'danger');
+            });
+        });
+        
+        // Clean recordings button
+        document.getElementById('clean-recordings').addEventListener('click', function() {
+            if (confirm('Are you sure you want to clean old recordings? This cannot be undone.')) {
+                showNotification('Cleaning old recordings...', 'info');
+                
+                fetch('/api/recordings/clean', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(data.message || 'Recordings cleaned successfully', 'success');
+                    } else {
+                        showNotification(data.message || 'Failed to clean recordings', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cleaning recordings:', error);
+                    showNotification('An error occurred while cleaning recordings', 'danger');
+                });
+            }
+        });
+        
+        // Factory Reset button
+        document.getElementById('factory-reset').addEventListener('click', function() {
+            document.getElementById('resetConfirmModal').classList.add('active');
+        });
+        
+        // Confirm Reset button
+        document.getElementById('confirm-reset-btn').addEventListener('click', function() {
+            showNotification('Initiating factory reset...', 'warning');
+            
+            fetch('/api/factory-reset', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Factory reset successful, redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/register';
+                    }, 3000);
+                } else {
+                    showNotification(data.message || 'Failed to perform factory reset', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error during factory reset:', error);
+                showNotification('An error occurred during factory reset', 'danger');
+            })
+            .finally(() => {
+                document.getElementById('resetConfirmModal').classList.remove('active');
+            });
+        });
+        
+        // Check AI status button
+        document.getElementById('check-ai-status').addEventListener('click', checkAIStatus);
+        
+        // Initial AI status check
+        checkAIStatus();
+    });
+    
+    // Function to hide/show recording path based on storage mode
+    function updateRecordingPathVisibility() {
+        const storageMode = document.getElementById('storage_mode').value;
+        const recordingPathRow = document.getElementById('recording_path_row');
+        
+        if (storageMode === 'database') {
+            recordingPathRow.classList.add('hidden');
+        } else {
+            recordingPathRow.classList.remove('hidden');
+        }
+    }
+    
+    // Load users from API
+    function loadUsers() {
+        const tableBody = document.getElementById('users-table-body');
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 20px;">
+                    <i class="fas fa-circle-notch fa-spin"></i> Loading users...
+                </td>
+            </tr>
+        `;
+        
+        fetch('/api/users')
+            .then(response => response.json())
+            .then(users => {
+                if (users && users.length > 0) {
+                    let html = '';
+                    users.forEach(user => {
+                        html += `
+                            <tr style="border-bottom: 1px solid #eee;">
+                                <td style="padding: 10px;">${user.username}</td>
+                                <td style="padding: 10px;">${user.is_admin ? 'Administrator' : 'User'}</td>
+                                <td style="padding: 10px;">${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</td>
+                                <td style="text-align: right; padding: 10px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="editUser('${user.username}', ${user.is_admin})">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    tableBody.innerHTML = html;
+                } else {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 20px;">
+                                No users found
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading users:', error);
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 20px; color: var(--danger-color);">
+                            <i class="fas fa-exclamation-circle"></i> Error loading users
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+    
+    // Edit user
+    function editUser(username, isAdmin) {
+        const modal = document.getElementById('editUserModal');
+        
+        // Set form values
+        document.getElementById('edit_username').value = username;
+        document.getElementById('edit_is_admin').checked = isAdmin;
+        
+        // Reset password fields
+        document.getElementById('edit_new_password').value = '';
+        document.getElementById('edit_confirm_password').value = '';
+        
+        // Set up delete button
+        document.getElementById('delete-user-btn').onclick = function() {
+            if (confirm(`Are you sure you want to delete user ${username}? This cannot be undone.`)) {
+                deleteUser(username);
+            }
+        };
+        
+        // Set up form submission
+        document.getElementById('edit-user-form').onsubmit = function(e) {
+            e.preventDefault();
+            
+            const newPassword = document.getElementById('edit_new_password').value;
+            const confirmPassword = document.getElementById('edit_confirm_password').value;
+            const isAdmin = document.getElementById('edit_is_admin').checked;
+            
+            // Validate passwords if set
+            if (newPassword && newPassword !== confirmPassword) {
+                showNotification('Passwords do not match', 'danger');
+                return;
+            }
+            
+            // Call API to update user
+            fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: newPassword || "",
+                    is_admin: isAdmin,
+                    action: 'update'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showNotification('User updated successfully', 'success');
+                    
+                    // Close modal
+                    modal.classList.remove('active');
+                    
+                    // Reload users
+                    loadUsers();
+                } else {
+                    showNotification(data.error || 'Failed to update user', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating user:', error);
+                showNotification('An error occurred while updating the user', 'danger');
+            });
+        };
+        
+        // Show modal
+        modal.classList.add('active');
+    }
+    
+    // Delete user
+    function deleteUser(username) {
+        fetch('/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: username,
+                action: 'delete'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showNotification('User deleted successfully', 'success');
+                
+                // Close modal
+                document.getElementById('editUserModal').classList.remove('active');
+                
+                // Reload users
+                loadUsers();
+            } else {
+                showNotification(data.error || 'Failed to delete user', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting user:', error);
+            showNotification('An error occurred while deleting the user', 'danger');
+        });
+    }
+    
+    // Check AI server status
+    function checkAIStatus() {
+        const statusIndicator = document.getElementById('ai-status-indicator');
+        statusIndicator.innerHTML = `
+            <span class="badge" style="background-color: #ccc; color: white; padding: 5px 10px; border-radius: 4px;">
+                <i class="fas fa-circle-notch fa-spin"></i> Checking...
+            </span>
+        `;
+        
+        fetch('/health')
+            .then(response => response.json())
+            .then(data => {
+                if (data.ai_server && data.ai_server.status === 'UP') {
+                    statusIndicator.innerHTML = `
+                        <span class="badge" style="background-color: var(--success-color); color: white; padding: 5px 10px; border-radius: 4px;">
+                            <i class="fas fa-check-circle"></i> Connected
+                        </span>
+                    `;
+                } else if (data.ai_server && data.ai_server.status === 'DISABLED') {
+                    statusIndicator.innerHTML = `
+                        <span class="badge" style="background-color: #999; color: white; padding: 5px 10px; border-radius: 4px;">
+                            <i class="fas fa-times-circle"></i> Disabled
+                        </span>
+                    `;
+                } else {
+                    statusIndicator.innerHTML = `
+                        <span class="badge" style="background-color: var(--danger-color); color: white; padding: 5px 10px; border-radius: 4px;">
+                            <i class="fas fa-times-circle"></i> Not Connected
+                        </span>
+                        <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                            ${data.ai_server && data.ai_server.error ? `Error: ${data.ai_server.error}` : 'Could not reach AI server'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error checking AI status:', error);
+                statusIndicator.innerHTML = `
+                    <span class="badge" style="background-color: var(--danger-color); color: white; padding: 5px 10px; border-radius: 4px;">
+                        <i class="fas fa-times-circle"></i> Not Connected
+                    </span>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Error connecting to health endpoint
+                    </div>
+                `;
+            });
+    }
+    
+    // Function to show notifications
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type}`;
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.style.maxWidth = '300px';
+        notification.style.opacity = '0';
+        notification.style.transition = 'opacity 0.3s ease-in-out';
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '1';
+        }, 10);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
+</script>
+{% endblock %}
