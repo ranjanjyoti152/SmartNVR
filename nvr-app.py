@@ -297,17 +297,81 @@ def admin_required(f):
     return decorated_function
 
 def get_color(label):
-    """Get consistent color for object label"""
+    """Get consistent color for object label with improved visual distinctness"""
+    # Normalize label to lowercase to ensure consistency
+    label = label.lower()
+    
+    # Extended predefined colors for common objects with better visual distinctness
+    PRESET_COLORS = {
+        'person': (0, 255, 0),     # Green
+        'car': (255, 0, 0),        # Red
+        'truck': (0, 0, 255),      # Blue
+        'motorcycle': (255, 165, 0),  # Orange
+        'bicycle': (128, 0, 128),   # Purple
+        'dog': (255, 255, 0),       # Yellow
+        'cat': (255, 0, 255),       # Magenta
+        'bus': (0, 255, 255),       # Cyan
+        'boat': (165, 42, 42),      # Brown
+        'traffic light': (220, 20, 60),  # Crimson
+        'fire hydrant': (255, 182, 193),  # Light pink
+        'stop sign': (255, 69, 0),   # Red-orange
+    }
+    
     if label in PRESET_COLORS:
         return PRESET_COLORS[label]
+        
+    # If not in preset colors, use consistent random color based on label hash
     if label not in COLOR_MAP:
-        color = (
-            random.randint(100, 255),
-            random.randint(100, 255),
-            random.randint(100, 255)
-        )
-        COLOR_MAP[label] = color
+        # Use hash of label to generate consistent color
+        label_hash = hash(label) % 1000
+        random.seed(label_hash)
+        
+        # Generate visually distinct colors with good brightness
+        # Avoid dark colors by ensuring at least one channel is bright
+        r = random.randint(100, 255)
+        g = random.randint(100, 255)
+        b = random.randint(100, 255)
+        
+        # Ensure at least one channel has high value for visibility
+        max_channel = max(r, g, b)
+        if max_channel < 200:
+            if r == max_channel:
+                r = 255
+            elif g == max_channel:
+                g = 255
+            else:
+                b = 255
+                
+        COLOR_MAP[label] = (r, g, b)
+        
+        # Reset random seed to avoid affecting other random functions
+        random.seed()
+        
     return COLOR_MAP[label]
+
+def format_class_name(label):
+    """Format object class names to be more readable
+    
+    Args:
+        label (str): Raw class name from AI detection
+        
+    Returns:
+        str: Formatted class name for display
+    """
+    if not label:
+        return "Unknown"
+        
+    # Convert underscores/hyphens to spaces
+    label = label.replace('_', ' ').replace('-', ' ')
+    
+    # Title case (capitalize first letter of each word)
+    label = label.title()
+    
+    # Special case handling for common abbreviations
+    label = label.replace('Tv', 'TV')  # Fix TV capitalization
+    label = label.replace('Atv', 'ATV')  # Fix ATV capitalization
+    
+    return label
 
 def load_stream_config():
     """Load stream configuration from file"""
@@ -753,6 +817,10 @@ def generate_frames(rtsp_url, is_roi_editor=False):
     reconnection_count = 0
     last_log_time = 0  # Track when we last logged a connection error
     
+    # Create object tracking dictionary to maintain consistent object IDs across frames
+    object_tracker = {}
+    next_object_id = 1
+    
     # Open the stream
     stream = open_stream(rtsp_url)
     if not stream:
@@ -932,6 +1000,8 @@ def generate_frames(rtsp_url, is_roi_editor=False):
         
         # Do object detection if AI is enabled and it's time for detection
         # Skip detection in ROI editor mode
+        current_detection_objects = {}  # Track objects in current frame
+        
         if ai_enabled and not is_roi_editor and current_time - last_detection_time >= detection_interval:
             try:
                 # Use higher quality for detection frames
@@ -1029,6 +1099,71 @@ def generate_frames(rtsp_url, is_roi_editor=False):
             cache_data = prediction_cache[rtsp_url]
             cache_age = current_time - cache_data['time']
             
+            # Purge old tracking IDs
+            if cache_age < 0.1:  # Only on fresh detections
+                active_object_ids = set()
+                
+                # First pass - assign tracking IDs to objects
+                for pred in cache_data['predictions']:
+                    if isinstance(pred, dict) and 'bbox' in pred and 'label' in pred:
+                        try:
+                            # Create a key for object tracking
+                            x1, y1, x2, y2 = map(int, pred['bbox'])
+                            label = pred.get('label', 'unknown').lower()
+                            
+                            # Calculate object center point
+                            center_x = (x1 + x2) // 2
+                            center_y = (y1 + y2) // 2
+                            
+                            # Try to match with existing tracked objects
+                            best_match_id = None
+                            best_match_distance = float('inf')
+                            
+                            for obj_id, obj_info in object_tracker.items():
+                                # Only match same class of objects
+                                if obj_info['label'] != label:
+                                    continue
+                                    
+                                # Calculate distance to previous center
+                                prev_x = obj_info['center_x']
+                                prev_y = obj_info['center_y']
+                                distance = ((center_x - prev_x) ** 2 + (center_y - prev_y) ** 2) ** 0.5
+                                
+                                # If within reasonable distance, consider it the same object
+                                if distance < 100 and distance < best_match_distance:  # 100 pixels threshold
+                                    best_match_id = obj_id
+                                    best_match_distance = distance
+                            
+                            if best_match_id is not None:
+                                # Update existing object
+                                object_id = best_match_id
+                                object_tracker[object_id]['center_x'] = center_x
+                                object_tracker[object_id]['center_y'] = center_y
+                                object_tracker[object_id]['time'] = current_time
+                            else:
+                                # Create new tracked object
+                                object_id = next_object_id
+                                next_object_id += 1
+                                object_tracker[object_id] = {
+                                    'label': label,
+                                    'center_x': center_x,
+                                    'center_y': center_y,
+                                    'time': current_time,
+                                    'color': get_color(label)
+                                }
+                            
+                            # Store ID in prediction for rendering
+                            pred['tracking_id'] = object_id
+                            active_object_ids.add(object_id)
+                            
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"Error processing prediction for tracking: {e}, pred: {pred}")
+                
+                # Clean up old tracked objects (not seen in 3 seconds)
+                for obj_id in list(object_tracker.keys()):
+                    if obj_id not in active_object_ids and current_time - object_tracker[obj_id]['time'] > 3.0:
+                        del object_tracker[obj_id]
+            
             # Only show predictions for a limited time
             if cache_age < PREDICTION_CACHE_DURATION:
                 predictions = cache_data['predictions']
@@ -1039,35 +1174,86 @@ def generate_frames(rtsp_url, is_roi_editor=False):
                         try:
                             x1, y1, x2, y2 = map(int, pred['bbox'])
                             label = pred['label']
+                            formatted_label = format_class_name(label)
+                            
                             # Look for 'score' first, then fall back to 'confidence' if not found
                             confidence = pred.get('score', pred.get('confidence', 0))
                             
-                            # Get color for this object type
-                            color = get_color(label)
+                            # Get tracking ID or default to 0
+                            tracking_id = pred.get('tracking_id', 0)
                             
-                            # Draw bounding box
+                            # Get color for this object type, preferring the tracked object color
+                            if tracking_id in object_tracker:
+                                color = object_tracker[tracking_id]['color']
+                            else:
+                                color = get_color(label)
+                            
+                            # Calculate box dimensions
+                            box_width = x2 - x1
+                            box_height = y2 - y1
+                            
+                            # Draw bounding box with rounded corners
                             cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
                             
-                            # Draw label background
-                            text = f"{label} {confidence*100:.0f}%"
+                            # Draw top identification bar that shows object class and confidence
+                            text = f"{formatted_label} {confidence*100:.0f}%"
                             text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-                            cv2.rectangle(display_frame, 
-                                         (x1, y1 - 20), 
-                                         (x1 + text_size[0], y1), 
-                                         color, -1)
                             
-                            # Draw label text
+                            # Ensure text background doesn't extend beyond frame edge
+                            text_width = min(text_size[0] + 10, box_width)
+                            
+                            # Draw semi-transparent background for text
+                            overlay = display_frame.copy()
+                            cv2.rectangle(overlay, 
+                                         (x1, y1 - 22), 
+                                         (x1 + text_width, y1), 
+                                         color, -1)
+                            # Apply transparency
+                            alpha = 0.7
+                            cv2.addWeighted(overlay, alpha, display_frame, 1 - alpha, 0, display_frame)
+                            
+                            # Draw text
                             cv2.putText(display_frame, text, 
-                                       (x1, y1 - 5), 
+                                       (x1 + 5, y1 - 5), 
                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                            
+                            # Draw ID label (bottom-right)
+                            if tracking_id > 0:
+                                id_text = f"#{tracking_id}"
+                                id_size = cv2.getTextSize(id_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
+                                
+                                # Draw ID background (small box in bottom right of bounding box)
+                                cv2.rectangle(display_frame,
+                                             (x2 - id_size[0] - 5, y2 - id_size[1] - 5),
+                                             (x2, y2),
+                                             color, -1)
+                                
+                                # Draw ID text
+                                cv2.putText(display_frame, id_text,
+                                           (x2 - id_size[0] - 3, y2 - 5),
+                                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                            
                         except (ValueError, TypeError) as e:
                             logger.error(f"Error drawing prediction: {e}, pred: {pred}")
         
         # Add timestamp and system info to the frame
         current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Draw semi-transparent background for timestamp
+        ts_size = cv2.getTextSize(current_datetime, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
+        overlay = display_frame.copy()
+        cv2.rectangle(overlay, (5, 5), (ts_size[0] + 15, 40), (0, 0, 0), -1)
+        # Apply transparency
+        alpha = 0.5
+        cv2.addWeighted(overlay, alpha, display_frame, 1 - alpha, 0, display_frame)
+        
+        # Draw timestamp with outline for better visibility
         cv2.putText(display_frame, current_datetime, 
                    (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)  # Outline
+        cv2.putText(display_frame, current_datetime, 
+                   (10, 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)  # Text
         
         # Convert to JPEG for streaming
         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]  # Lower quality for streaming
